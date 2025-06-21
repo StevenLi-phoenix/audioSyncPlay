@@ -3,6 +3,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <fstream>
 
 int main()
 {
@@ -118,5 +119,39 @@ int main()
 
     // LOG_INFO("Test completed");
     std::cout << "Test completed" << std::endl;
+
+    // Write results to file
+    std::ofstream results_file("test_results.txt");
+    if (results_file.is_open())
+    {
+        results_file << "=== Test Results ===" << std::endl;
+        results_file << "Total frames captured: " << stats.frames_captured << std::endl;
+        results_file << "Frames dropped: " << stats.frames_dropped << std::endl;
+        results_file << "Sample rate: " << stats.sample_rate << " Hz" << std::endl;
+        results_file << "Channels: " << stats.channels << std::endl;
+        results_file << "Bits per sample: " << stats.bits_per_sample << std::endl;
+        results_file << "Frame size: " << stats.frame_size << " samples" << std::endl;
+        results_file << "Test duration: " << totalTime << " seconds" << std::endl;
+
+        if (stats.frames_captured > 0 && totalTime > 0)
+        {
+            float avgFps = static_cast<float>(stats.frames_captured) / totalTime;
+            results_file << "Average capture rate: " << avgFps << " fps" << std::endl;
+            if (avgFps > 40.0f)
+            {
+                results_file << "✓ Audio capture performance is good" << std::endl;
+            }
+            else
+            {
+                results_file << "⚠ Audio capture performance is below expected" << std::endl;
+            }
+        }
+        else
+        {
+            results_file << "✗ No frames were captured" << std::endl;
+        }
+        results_file.close();
+    }
+
     return 0;
 }

@@ -9,12 +9,20 @@
 ### 第 1 周：基础架构搭建
 **目标**: 建立项目基础结构，实现基本的音频捕获功能
 
+**本周完成情况:**
+*   **CMake Project Structure:** 创建了 `CMakeLists.txt`，包含测试、发送端和接收端的可执行文件目标。
+*   **WASAPI Audio Capture:** 使用 WASAPI loopback 实现了 `AudioCapture` 类，用于捕获系统音频。
+*   **UDP Network Framework:** 创建了 `NetworkUDP` 类的占位符。
+*   **Test Framework:** 开发了 `test_audio_capture.cpp` 来验证音频捕获功能。
+*   **Logging:** 添加了 `Logger` 类，用于调试和信息性消息。
+*   **Configuration:** 设置了用于管理应用程序配置的头文件。
+
 #### 任务清单
-- [ ] 创建 CMake 项目结构
-- [ ] 配置 VSCode 开发环境
-- [ ] 实现 WASAPI 音频捕获模块
-- [ ] 创建基本的 UDP 网络通信框架
-- [ ] 编写单元测试框架
+- [x] 创建 CMake 项目结构
+- [x] 配置 VSCode 开发环境
+- [x] 实现 WASAPI 音频捕获模块
+- [x] 创建基本的 UDP 网络通信框架
+- [x] 编写单元测试框架
 
 #### 技术要点
 ```cpp
@@ -32,10 +40,10 @@ private:
 ```
 
 #### 验收标准
-- [ ] 能够捕获系统音频（WASAPI Loopback）
-- [ ] 音频格式：PCM 16-bit, 44.1kHz
-- [ ] 帧大小：1024 samples (约 23ms)
-- [ ] 无音频丢失或卡顿
+- [x] 能够捕获系统音频（WASAPI Loopback）
+- [x] 音频格式：PCM 16-bit, 44.1kHz
+- [x] 帧大小：1024 samples (约 23ms)
+- [x] 无音频丢失或卡顿
 
 ---
 
