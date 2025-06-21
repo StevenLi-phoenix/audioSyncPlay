@@ -119,91 +119,95 @@ bool AudioCapture::InitializeWASAPI()
               << ", Channels: " << m_waveFormat->nChannels
               << ", Bits: " << m_waveFormat->wBitsPerSample << std::endl;
 
-    // Try to use the native format first, only modify if necessary
-    bool formatModified = false;
+    // OPTIMIZATION: Always prefer native format for best quality
+    // Only convert if absolutely necessary for compatibility
+    bool needsFormatConversion = false;
 
-    // Check if we need to modify the format
-    if (m_waveFormat->wFormatTag != WAVE_FORMAT_PCM ||
-        m_waveFormat->nChannels != m_stats.channels ||
-        m_waveFormat->nSamplesPerSec != m_stats.sample_rate ||
-        m_waveFormat->wBitsPerSample != m_stats.bits_per_sample)
+    std::cout << "[DEBUG] Native format detected - Sample Rate: " << m_waveFormat->nSamplesPerSec
+              << ", Channels: " << m_waveFormat->nChannels
+              << ", Bits: " << m_waveFormat->wBitsPerSample
+              << ", Format: " << (m_waveFormat->wFormatTag == WAVE_FORMAT_PCM ? "PCM" :
+                                 m_waveFormat->wFormatTag == WAVE_FORMAT_IEEE_FLOAT ? "FLOAT" : "OTHER") << std::endl;
+
+    // Check if we can use the native format directly
+    if (m_waveFormat->wFormatTag == WAVE_FORMAT_PCM || m_waveFormat->wFormatTag == WAVE_FORMAT_IEEE_FLOAT)
     {
-        // If use_native_format is enabled, prefer native format
-        if (g_config.audio.use_native_format)
-        {
-            std::cout << "[DEBUG] Using native format for better quality..." << std::endl;
+        // Use native format for best quality
+        std::cout << "[DEBUG] Using native format for optimal audio quality..." << std::endl;
 
-            // Update our stats to match the native format
-            m_stats.sample_rate = m_waveFormat->nSamplesPerSec;
-            m_stats.channels = m_waveFormat->nChannels;
-            m_stats.bits_per_sample = m_waveFormat->wBitsPerSample;
-
-            std::cout << "[DEBUG] Native format - Sample Rate: " << m_stats.sample_rate
-                      << ", Channels: " << m_stats.channels
-                      << ", Bits: " << m_stats.bits_per_sample << std::endl;
-        }
-        else
-        {
-            formatModified = true;
-            std::cout << "[DEBUG] Modifying format to match requirements..." << std::endl;
-
-            // Set our desired format
-            m_waveFormat->wFormatTag = WAVE_FORMAT_PCM;
-            m_waveFormat->nChannels = m_stats.channels;
-            m_waveFormat->nSamplesPerSec = m_stats.sample_rate;
-            m_waveFormat->wBitsPerSample = m_stats.bits_per_sample;
-            m_waveFormat->nBlockAlign = (m_waveFormat->nChannels * m_waveFormat->wBitsPerSample) / 8;
-            m_waveFormat->nAvgBytesPerSec = m_waveFormat->nSamplesPerSec * m_waveFormat->nBlockAlign;
-            m_waveFormat->cbSize = 0;
-        }
-    }
-    else
-    {
         // Update our stats to match the native format
         m_stats.sample_rate = m_waveFormat->nSamplesPerSec;
         m_stats.channels = m_waveFormat->nChannels;
         m_stats.bits_per_sample = m_waveFormat->wBitsPerSample;
-        m_stats.frame_size = 1024; // Keep our frame size
+        m_stats.frame_size = 1024; // Keep our frame size preference
+
+        // Log the format we're using
+        std::cout << "[DEBUG] Optimized format - Sample Rate: " << m_stats.sample_rate
+                  << ", Channels: " << m_stats.channels
+                  << ", Bits: " << m_stats.bits_per_sample << std::endl;
+    }
+    else
+    {
+        // Non-standard format, need to convert to PCM
+        needsFormatConversion = true;
+        std::cout << "[DEBUG] Non-standard format detected, converting to PCM..." << std::endl;
+
+        // Convert to high-quality PCM format
+        m_waveFormat->wFormatTag = WAVE_FORMAT_PCM;
+        m_waveFormat->nChannels = std::max(2, static_cast<int>(m_waveFormat->nChannels)); // Prefer stereo minimum
+        m_waveFormat->nSamplesPerSec = std::max(44100U, m_waveFormat->nSamplesPerSec); // Prefer 44.1kHz minimum
+        m_waveFormat->wBitsPerSample = std::max(16, static_cast<int>(m_waveFormat->wBitsPerSample)); // Prefer 16-bit minimum
+        m_waveFormat->nBlockAlign = (m_waveFormat->nChannels * m_waveFormat->wBitsPerSample) / 8;
+        m_waveFormat->nAvgBytesPerSec = m_waveFormat->nSamplesPerSec * m_waveFormat->nBlockAlign;
+        m_waveFormat->cbSize = 0;
+
+        // Update our stats
+        m_stats.sample_rate = m_waveFormat->nSamplesPerSec;
+        m_stats.channels = m_waveFormat->nChannels;
+        m_stats.bits_per_sample = m_waveFormat->wBitsPerSample;
     }
 
     std::cout << "[DEBUG] Initialize audio client..." << std::endl;
+    // Use optimized buffer size based on target latency (default 50ms for low latency)
+    REFERENCE_TIME bufferDuration = 500000; // 50ms in 100ns units
+
     hr = m_audioClient->Initialize(
         AUDCLNT_SHAREMODE_SHARED,
         AUDCLNT_STREAMFLAGS_LOOPBACK,
-        500000, // 50ms buffer (reduced from 1 second for low latency)
+        bufferDuration,
         0,
         m_waveFormat,
         nullptr);
     std::cout << "[DEBUG] Initialize audio client HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
 
-    // If format modification failed, try with native format
-    if (FAILED(hr) && formatModified)
+    // If initialization failed and we tried format conversion, fallback to original native format
+    if (FAILED(hr) && needsFormatConversion)
     {
-        std::cout << "[DEBUG] Format modification failed, trying native format..." << std::endl;
+        std::cout << "[DEBUG] Format conversion failed, reverting to original native format..." << std::endl;
 
-        // Get the mix format again
+        // Get the original mix format again
         CoTaskMemFree(m_waveFormat);
         hr = m_audioClient->GetMixFormat(&m_waveFormat);
         if (SUCCEEDED(hr))
         {
-            // Update our stats to match the native format
+            // Update our stats to match the original native format
             m_stats.sample_rate = m_waveFormat->nSamplesPerSec;
             m_stats.channels = m_waveFormat->nChannels;
             m_stats.bits_per_sample = m_waveFormat->wBitsPerSample;
 
-            std::cout << "[DEBUG] Using native format - Sample Rate: " << m_stats.sample_rate
+            std::cout << "[DEBUG] Reverted to original native format - Sample Rate: " << m_stats.sample_rate
                       << ", Channels: " << m_stats.channels
                       << ", Bits: " << m_stats.bits_per_sample << std::endl;
 
-            // Try initialization with native format
+            // Try initialization with original native format
             hr = m_audioClient->Initialize(
                 AUDCLNT_SHAREMODE_SHARED,
                 AUDCLNT_STREAMFLAGS_LOOPBACK,
-                500000, // 50ms buffer (reduced from 1 second for low latency)
+                bufferDuration,
                 0,
                 m_waveFormat,
                 nullptr);
-            std::cout << "[DEBUG] Initialize with native format HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
+            std::cout << "[DEBUG] Initialize with original native format HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
         }
     }
 
@@ -514,55 +518,258 @@ bool AudioCapture::ConvertAudioFormat(const std::vector<uint8_t> &input, std::ve
                                       int fromSampleRate, int fromChannels, int fromBitsPerSample,
                                       int toSampleRate, int toChannels, int toBitsPerSample)
 {
-    // Simple format conversion - for now just handle bit depth changes
-    // TODO: Add sample rate conversion and channel mixing/expansion
+    // OPTIMIZATION: Complete audio format conversion implementation
+    LOG_INFO_FMT("Converting audio format: {}Hz/{}ch/{}bit -> {}Hz/{}ch/{}bit",
+                 fromSampleRate, fromChannels, fromBitsPerSample, toSampleRate, toChannels, toBitsPerSample);
 
-    if (fromSampleRate != toSampleRate || fromChannels != toChannels)
+    if (input.empty())
     {
-        LOG_WARNING_FMT("Sample rate or channel conversion not yet implemented: {}Hz/{}ch -> {}Hz/{}ch",
-                        fromSampleRate, fromChannels, toSampleRate, toChannels);
+        LOG_ERROR("Input audio data is empty");
         return false;
     }
 
-    size_t inputSamples = input.size() / (fromChannels * (fromBitsPerSample / 8));
-    size_t outputSize = inputSamples * toChannels * (toBitsPerSample / 8);
-    output.resize(outputSize);
+    // Calculate input frame info
+    size_t inputBytesPerSample = fromBitsPerSample / 8;
+    size_t inputFrameSize = fromChannels * inputBytesPerSample;
+    size_t inputFrameCount = input.size() / inputFrameSize;
 
-    if (fromBitsPerSample == 16 && toBitsPerSample == 32)
+    if (input.size() % inputFrameSize != 0)
     {
-        // Convert 16-bit to 32-bit float
-        const int16_t *src = reinterpret_cast<const int16_t *>(input.data());
-        float *dst = reinterpret_cast<float *>(output.data());
-
-        for (size_t i = 0; i < inputSamples * fromChannels; ++i)
-        {
-            dst[i] = src[i] / 32768.0f; // Normalize to [-1.0, 1.0]
-        }
+        LOG_WARNING("Input size is not aligned to frame boundaries");
     }
-    else if (fromBitsPerSample == 32 && toBitsPerSample == 16)
-    {
-        // Convert 32-bit float to 16-bit
-        const float *src = reinterpret_cast<const float *>(input.data());
-        int16_t *dst = reinterpret_cast<int16_t *>(output.data());
 
-        for (size_t i = 0; i < inputSamples * fromChannels; ++i)
-        {
-            float sample = src[i] * 32767.0f;                         // Scale to 16-bit range
-            sample = std::max(-32768.0f, std::min(32767.0f, sample)); // Clamp
-            dst[i] = static_cast<int16_t>(sample);
-        }
-    }
-    else if (fromBitsPerSample == toBitsPerSample)
+    // Step 1: Convert bit depth first (to intermediate format)
+    std::vector<float> intermediateBuffer;
+    if (!ConvertBitDepthToFloat(input, intermediateBuffer, fromChannels, fromBitsPerSample))
     {
-        // Same bit depth, just copy
-        memcpy(output.data(), input.data(), input.size());
+        LOG_ERROR("Failed to convert bit depth to intermediate format");
+        return false;
+    }
+
+    // Step 2: Handle sample rate conversion
+    std::vector<float> resampledBuffer;
+    if (fromSampleRate != toSampleRate)
+    {
+        if (!ResampleAudio(intermediateBuffer, resampledBuffer, inputFrameCount, fromChannels,
+                          fromSampleRate, toSampleRate))
+        {
+            LOG_ERROR("Failed to resample audio");
+            return false;
+        }
     }
     else
     {
-        LOG_ERROR_FMT("Unsupported bit depth conversion: {} -> {}", fromBitsPerSample, toBitsPerSample);
+        resampledBuffer = std::move(intermediateBuffer);
+    }
+
+    // Step 3: Handle channel conversion
+    std::vector<float> remappedBuffer;
+    size_t outputFrameCount = resampledBuffer.size() / fromChannels;
+    if (fromChannels != toChannels)
+    {
+        if (!ConvertChannels(resampledBuffer, remappedBuffer, outputFrameCount, fromChannels, toChannels))
+        {
+            LOG_ERROR("Failed to convert channels");
+            return false;
+        }
+    }
+    else
+    {
+        remappedBuffer = std::move(resampledBuffer);
+    }
+
+    // Step 4: Convert from float to target bit depth
+    if (!ConvertFloatToBitDepth(remappedBuffer, output, toChannels, toBitsPerSample))
+    {
+        LOG_ERROR("Failed to convert from intermediate format to target bit depth");
         return false;
     }
 
+    LOG_DEBUG_FMT("Format conversion successful: {} input bytes -> {} output bytes",
+                  input.size(), output.size());
+    return true;
+}
+
+// Helper function to convert various bit depths to float
+bool AudioCapture::ConvertBitDepthToFloat(const std::vector<uint8_t> &input, std::vector<float> &output,
+                                         int channels, int bitsPerSample)
+{
+    size_t sampleCount = input.size() / (bitsPerSample / 8);
+    output.resize(sampleCount);
+
+    switch (bitsPerSample)
+    {
+    case 16:
+    {
+        const int16_t *src = reinterpret_cast<const int16_t *>(input.data());
+        for (size_t i = 0; i < sampleCount; ++i)
+        {
+            output[i] = static_cast<float>(src[i]) / 32768.0f;
+        }
+        break;
+    }
+    case 24:
+    {
+        // 24-bit is tricky as it's not aligned - need to read 3 bytes at a time
+        for (size_t i = 0; i < sampleCount; ++i)
+        {
+            int32_t sample = 0;
+            memcpy(&sample, &input[i * 3], 3);
+            // Sign extend if negative
+            if (sample & 0x800000) sample |= 0xFF000000;
+            output[i] = static_cast<float>(sample) / 8388608.0f; // 2^23
+        }
+        break;
+    }
+    case 32:
+    {
+        const float *src = reinterpret_cast<const float *>(input.data());
+        std::copy(src, src + sampleCount, output.begin());
+        break;
+    }
+    default:
+        LOG_ERROR_FMT("Unsupported input bit depth: {}", bitsPerSample);
+        return false;
+    }
+
+    return true;
+}
+
+// Helper function to convert float to various bit depths
+bool AudioCapture::ConvertFloatToBitDepth(const std::vector<float> &input, std::vector<uint8_t> &output,
+                                         int channels, int bitsPerSample)
+{
+    size_t outputSize = input.size() * (bitsPerSample / 8);
+    output.resize(outputSize);
+
+    switch (bitsPerSample)
+    {
+    case 16:
+    {
+        int16_t *dst = reinterpret_cast<int16_t *>(output.data());
+        for (size_t i = 0; i < input.size(); ++i)
+        {
+            float sample = std::max(-1.0f, std::min(1.0f, input[i])); // Clamp
+            dst[i] = static_cast<int16_t>(sample * 32767.0f);
+        }
+        break;
+    }
+    case 24:
+    {
+        for (size_t i = 0; i < input.size(); ++i)
+        {
+            float sample = std::max(-1.0f, std::min(1.0f, input[i])); // Clamp
+            int32_t intSample = static_cast<int32_t>(sample * 8388607.0f); // 2^23 - 1
+            memcpy(&output[i * 3], &intSample, 3);
+        }
+        break;
+    }
+    case 32:
+    {
+        float *dst = reinterpret_cast<float *>(output.data());
+        for (size_t i = 0; i < input.size(); ++i)
+        {
+            dst[i] = std::max(-1.0f, std::min(1.0f, input[i])); // Clamp
+        }
+        break;
+    }
+    default:
+        LOG_ERROR_FMT("Unsupported output bit depth: {}", bitsPerSample);
+        return false;
+    }
+
+    return true;
+}
+
+// Simple linear resampling (for production, consider using a better resampler like libsamplerate)
+bool AudioCapture::ResampleAudio(const std::vector<float> &input, std::vector<float> &output,
+                                size_t inputFrameCount, int channels, int fromSampleRate, int toSampleRate)
+{
+    if (fromSampleRate == toSampleRate)
+    {
+        output = input;
+        return true;
+    }
+
+    double ratio = static_cast<double>(toSampleRate) / fromSampleRate;
+    size_t outputFrameCount = static_cast<size_t>(inputFrameCount * ratio);
+    output.resize(outputFrameCount * channels);
+
+    // Simple linear interpolation resampling
+    for (size_t outFrame = 0; outFrame < outputFrameCount; ++outFrame)
+    {
+        double sourceIndex = outFrame / ratio;
+        size_t index0 = static_cast<size_t>(sourceIndex);
+        size_t index1 = std::min(index0 + 1, inputFrameCount - 1);
+        float fraction = sourceIndex - index0;
+
+        for (int ch = 0; ch < channels; ++ch)
+        {
+            float sample0 = (index0 < inputFrameCount) ? input[index0 * channels + ch] : 0.0f;
+            float sample1 = (index1 < inputFrameCount) ? input[index1 * channels + ch] : 0.0f;
+            output[outFrame * channels + ch] = sample0 + fraction * (sample1 - sample0);
+        }
+    }
+
+    LOG_DEBUG_FMT("Resampled {} frames to {} frames ({}Hz -> {}Hz)",
+                  inputFrameCount, outputFrameCount, fromSampleRate, toSampleRate);
+    return true;
+}
+
+// Channel conversion (mono/stereo/multi-channel)
+bool AudioCapture::ConvertChannels(const std::vector<float> &input, std::vector<float> &output,
+                                  size_t frameCount, int fromChannels, int toChannels)
+{
+    if (fromChannels == toChannels)
+    {
+        output = input;
+        return true;
+    }
+
+    output.resize(frameCount * toChannels);
+
+    for (size_t frame = 0; frame < frameCount; ++frame)
+    {
+        if (fromChannels == 1 && toChannels == 2)
+        {
+            // Mono to stereo - duplicate channel
+            float sample = input[frame];
+            output[frame * 2] = sample;
+            output[frame * 2 + 1] = sample;
+        }
+        else if (fromChannels == 2 && toChannels == 1)
+        {
+            // Stereo to mono - average channels
+            float left = input[frame * 2];
+            float right = input[frame * 2 + 1];
+            output[frame] = (left + right) * 0.5f;
+        }
+        else if (fromChannels > toChannels)
+        {
+            // Downmix - take first N channels
+            for (int ch = 0; ch < toChannels; ++ch)
+            {
+                output[frame * toChannels + ch] = input[frame * fromChannels + ch];
+            }
+        }
+        else
+        {
+            // Upmix - copy available channels, zero-pad missing ones
+            for (int ch = 0; ch < toChannels; ++ch)
+            {
+                if (ch < fromChannels)
+                {
+                    output[frame * toChannels + ch] = input[frame * fromChannels + ch];
+                }
+                else
+                {
+                    output[frame * toChannels + ch] = 0.0f;
+                }
+            }
+        }
+    }
+
+    LOG_DEBUG_FMT("Converted channels: {} -> {} ({} frames)", fromChannels, toChannels, frameCount);
     return true;
 }
 
