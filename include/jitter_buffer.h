@@ -4,165 +4,86 @@
 #include <queue>
 #include <map>
 #include <cstdint>
-#include <mutex>
-#include <atomic>
 #include <chrono>
 
-/**
- * @brief Jitter buffer for audio frame management
- *
- * This class provides intelligent buffering of audio frames to handle
- * network jitter and ensure smooth playback with configurable latency.
- */
+struct AudioFrame
+{
+    std::vector<uint8_t> data;
+    uint64_t timestamp;
+    uint32_t sequence_number;
+    std::chrono::steady_clock::time_point receive_time;
+
+    AudioFrame() : timestamp(0), sequence_number(0) {}
+    AudioFrame(const std::vector<uint8_t> &frame_data, uint64_t ts, uint32_t seq)
+        : data(frame_data), timestamp(ts), sequence_number(seq)
+    {
+        receive_time = std::chrono::steady_clock::now();
+    }
+};
+
 class JitterBuffer
 {
 public:
-    // Audio frame with metadata
-    struct AudioFrame
-    {
-        std::vector<uint8_t> data;
-        uint64_t timestamp;
-        uint32_t sequence;
-        bool isValid;
-
-        AudioFrame() : timestamp(0), sequence(0), isValid(false) {}
-        AudioFrame(const std::vector<uint8_t> &frameData, uint64_t ts, uint32_t seq)
-            : data(frameData), timestamp(ts), sequence(seq), isValid(true) {}
-    };
-
-    // Buffer statistics
-    struct BufferStats
-    {
-        int currentLatencyMs = 0;
-        int targetLatencyMs = 100;
-        int maxLatencyMs = 200;
-        int bufferOccupancyPercent = 0;
-        uint32_t framesDropped = 0;
-        uint32_t framesReordered = 0;
-        uint32_t framesBuffered = 0;
-        uint32_t totalFramesReceived = 0;
-        float avgJitterMs = 0.0f;
-        bool isUnderrun = false;
-        bool isOverrun = false;
-    };
-
-    // Configuration
-    struct BufferConfig
-    {
-        int targetLatencyMs = 100;
-        int maxLatencyMs = 200;
-        int minLatencyMs = 50;
-        int adaptiveThresholdMs = 20;
-        bool enableAdaptiveLatency = true;
-        bool enableFrameReordering = true;
-        size_t maxBufferSize = 1000; // Maximum frames in buffer
-    };
-
     JitterBuffer();
     ~JitterBuffer();
 
-    /**
-     * @brief Push audio frame into buffer
-     * @param frame Audio frame data
-     * @param timestamp Frame timestamp
-     * @param sequence Frame sequence number
-     */
-    void PushFrame(const std::vector<uint8_t> &frame, uint64_t timestamp, uint32_t sequence = 0);
-
-    /**
-     * @brief Get next audio frame for playback
-     * @param frame_out Output buffer for audio frame
-     * @return true if frame retrieved successfully
-     */
+    // Core interface
+    void PushFrame(const std::vector<uint8_t> &frame, uint64_t timestamp, uint32_t sequence_number);
     bool GetFrame(std::vector<uint8_t> &frame_out);
+    void SetTargetLatencyMs(int latency);
+    void SetMaxLatencyMs(int max_latency);
 
-    /**
-     * @brief Set target latency
-     * @param latencyMs Target latency in milliseconds
-     */
-    void SetTargetLatencyMs(int latencyMs);
+    // Configuration
+    void SetFrameSize(size_t frame_size);
+    void SetSampleRate(uint32_t sample_rate);
+    void SetChannels(uint32_t channels);
 
-    /**
-     * @brief Set maximum latency
-     * @param latencyMs Maximum latency in milliseconds
-     */
-    void SetMaxLatencyMs(int latencyMs);
-
-    /**
-     * @brief Set buffer configuration
-     * @param config Buffer configuration
-     */
-    void SetConfig(const BufferConfig &config);
-
-    /**
-     * @brief Get current buffer statistics
-     * @return Buffer statistics
-     */
+    // Statistics
+    struct BufferStats
+    {
+        int current_latency_ms;
+        int target_latency_ms;
+        int buffer_occupancy_percent;
+        uint32_t frames_dropped;
+        uint32_t frames_reordered;
+        uint32_t frames_buffered;
+        uint32_t total_frames_received;
+        float avg_jitter_ms;
+    };
     BufferStats GetStats() const;
+    void ResetStats();
 
-    /**
-     * @brief Reset buffer and statistics
-     */
-    void Reset();
-
-    /**
-     * @brief Check if buffer has enough data for playback
-     * @return true if buffer is ready
-     */
-    bool IsReady() const;
-
-    /**
-     * @brief Get current buffer occupancy percentage
-     * @return Occupancy percentage (0-100)
-     */
-    int GetOccupancyPercent() const;
-
-    /**
-     * @brief Flush buffer (remove all frames)
-     */
-    void Flush();
+    // Buffer management
+    void Clear();
+    bool IsEmpty() const;
+    size_t GetBufferSize() const;
 
 private:
-    // Private methods
-    void UpdateLatency();
-    void AdaptiveLatencyAdjustment();
-    void CleanupOldFrames();
-    bool ShouldDropFrame(const AudioFrame &frame) const;
-    void UpdateStatistics();
-    uint64_t GetCurrentTimestamp() const;
+    // Buffer storage
+    std::map<uint32_t, AudioFrame> m_frameBuffer;
+    std::queue<uint32_t> m_outputQueue;
 
-    // Frame ordering and validation
-    void InsertFrameInOrder(const AudioFrame &frame);
-    bool IsFrameInOrder(uint32_t sequence) const;
-    void HandleOutOfOrderFrame(const AudioFrame &frame);
+    // Configuration
+    int m_targetLatencyMs;
+    int m_maxLatencyMs;
+    size_t m_frameSize;
+    uint32_t m_sampleRate;
+    uint32_t m_channels;
 
-    // Helper methods
-    int CalculateLatencyMs(uint64_t timestamp) const;
-    float CalculateJitter() const;
-
-    // Member variables
-    std::map<uint64_t, AudioFrame> frameBuffer_; // Ordered by timestamp
-    std::queue<AudioFrame> playbackQueue_;       // Ready for playback
-
-    BufferConfig config_;
-    BufferStats stats_;
-
-    // Threading
-    mutable std::mutex bufferMutex_;
-    std::atomic<bool> isReady_;
+    // Statistics
+    mutable BufferStats m_stats;
+    uint32_t m_nextExpectedSequence;
+    uint32_t m_lastSequenceReceived;
 
     // Timing
-    uint64_t lastPlaybackTime_;
-    uint64_t lastFrameTime_;
-    std::vector<float> jitterHistory_;
+    std::chrono::steady_clock::time_point m_lastFrameTime;
+    std::vector<float> m_jitterHistory;
 
-    // State
-    uint32_t expectedSequence_;
-    uint32_t lastSequence_;
-    bool firstFrameReceived_;
-
-    // Constants
-    static constexpr size_t JITTER_HISTORY_SIZE = 50;
-    static constexpr uint64_t MAX_FRAME_AGE_MS = 5000; // 5 seconds
-    static constexpr float LATENCY_ADJUSTMENT_FACTOR = 0.1f;
+    // Helper methods
+    void UpdateStats();
+    void AdaptiveBufferAdjustment();
+    bool IsFrameTooOld(const AudioFrame &frame) const;
+    void ReorderFrames();
+    float CalculateJitter() const;
+    int CalculateCurrentLatency() const;
 };

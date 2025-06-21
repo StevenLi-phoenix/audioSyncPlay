@@ -1,0 +1,5 @@
+D:/Documents/PythonProjects/audioSyncPlay/build/CMakeFiles/test_audio_capture.dir
+D:/Documents/PythonProjects/audioSyncPlay/build/CMakeFiles/sender.dir
+D:/Documents/PythonProjects/audioSyncPlay/build/CMakeFiles/receiver.dir
+D:/Documents/PythonProjects/audioSyncPlay/build/CMakeFiles/edit_cache.dir
+D:/Documents/PythonProjects/audioSyncPlay/build/CMakeFiles/rebuild_cache.dir

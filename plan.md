@@ -57,11 +57,11 @@ public:
     // 发送端
     bool InitUDPSender(const std::string& dst_ip, uint16_t port);
     bool SendFrame(const uint8_t* data, size_t size, uint64_t timestamp);
-    
+
     // 接收端
     bool InitUDPReceiver(uint16_t listen_port);
     bool ReceiveFrame(std::vector<uint8_t>& frame_out, uint64_t& timestamp);
-    
+
     // 统计信息
     struct NetworkStats {
         uint32_t packets_sent;
@@ -99,7 +99,7 @@ public:
     bool GetFrame(std::vector<uint8_t>& frame_out);
     void SetTargetLatencyMs(int latency);
     void SetMaxLatencyMs(int max_latency);
-    
+
     struct BufferStats {
         int current_latency_ms;
         int target_latency_ms;
@@ -107,7 +107,7 @@ public:
         uint32_t frames_dropped;
         uint32_t frames_reordered;
     };
-    
+
     BufferStats GetStats() const;
 private:
     // 环形缓冲区实现
@@ -143,14 +143,14 @@ public:
     bool PlayFrame(const std::vector<uint8_t>& frame);
     void StopPlayback();
     void SetVolume(float volume); // 0.0 - 1.0
-    
+
     struct PlaybackStats {
         uint32_t frames_played;
         uint32_t frames_dropped;
         float current_volume;
         bool is_playing;
     };
-    
+
     PlaybackStats GetStats() const;
 };
 ```
@@ -220,13 +220,13 @@ struct AudioConfig {
 ## 📈 性能指标
 
 ### 目标指标
-| 指标 | 目标值 | 测量方法 |
-|------|--------|----------|
+| 指标       | 目标值  | 测量方法             |
+| ---------- | ------- | -------------------- |
 | 端到端延迟 | < 100ms | 音频输入到输出时间差 |
-| 同步精度 | < 50ms | 多设备间播放时间差 |
-| CPU 使用率 | < 10% | 系统资源监控 |
-| 内存使用 | < 50MB | 进程内存占用 |
-| 网络带宽 | < 2Mbps | 网络流量监控 |
+| 同步精度   | < 50ms  | 多设备间播放时间差   |
+| CPU 使用率 | < 10%   | 系统资源监控         |
+| 内存使用   | < 50MB  | 进程内存占用         |
+| 网络带宽   | < 2Mbps | 网络流量监控         |
 
 ### 测试环境
 - **网络**: 千兆局域网
@@ -278,21 +278,21 @@ struct AudioConfig {
 ## 📋 风险评估
 
 ### 技术风险
-| 风险 | 概率 | 影响 | 缓解措施 |
-|------|------|------|----------|
-| WASAPI 兼容性 | 中 | 高 | 多设备测试，降级方案 |
-| 网络延迟过高 | 中 | 中 | 本地网络优化，缓冲调整 |
-| 音频质量损失 | 低 | 中 | 高质量音频格式，无损传输 |
+| 风险          | 概率 | 影响 | 缓解措施                 |
+| ------------- | ---- | ---- | ------------------------ |
+| WASAPI 兼容性 | 中   | 高   | 多设备测试，降级方案     |
+| 网络延迟过高  | 中   | 中   | 本地网络优化，缓冲调整   |
+| 音频质量损失  | 低   | 中   | 高质量音频格式，无损传输 |
 
 ### 项目风险
-| 风险 | 概率 | 影响 | 缓解措施 |
-|------|------|------|----------|
-| 开发时间超期 | 中 | 中 | 优先级调整，功能简化 |
-| 性能不达标 | 中 | 高 | 早期性能测试，优化迭代 |
-| 用户接受度 | 低 | 中 | 用户反馈收集，功能调整 |
+| 风险         | 概率 | 影响 | 缓解措施               |
+| ------------ | ---- | ---- | ---------------------- |
+| 开发时间超期 | 中   | 中   | 优先级调整，功能简化   |
+| 性能不达标   | 中   | 高   | 早期性能测试，优化迭代 |
+| 用户接受度   | 低   | 中   | 用户反馈收集，功能调整 |
 
 ---
 
 **更新时间**: 2024年12月
 **版本**: v1.0
-**负责人**: 开发团队 
+**负责人**: 开发团队

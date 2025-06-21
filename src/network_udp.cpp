@@ -1,364 +1,318 @@
 #include "network_udp.h"
+#include "logger.h"
 #include <iostream>
-#include <algorithm>
-#include <cstring>
+#include <chrono>
+
+bool NetworkUDP::s_winsockInitialized = false;
 
 NetworkUDP::NetworkUDP()
-    : socket_(INVALID_SOCKET), isInitialized_(false), isSender_(false), sequenceNumber_(0)
+    : m_senderSocket(INVALID_SOCKET), m_receiverSocket(INVALID_SOCKET), m_senderInitialized(false), m_receiverInitialized(false), m_bufferSize(65536), m_timeoutMs(1000)
 {
+    memset(&m_destAddr, 0, sizeof(m_destAddr));
+    memset(&m_stats, 0, sizeof(m_stats));
 }
 
 NetworkUDP::~NetworkUDP()
 {
-    Close();
-}
-
-bool NetworkUDP::InitUDPSender(const std::string &dst_ip, uint16_t port, const NetworkConfig &config)
-{
-    if (isInitialized_)
-    {
-        std::cerr << "Network already initialized\n";
-        return false;
-    }
-
-    config_ = config;
-    config_.remoteIP = dst_ip;
-    config_.remotePort = port;
-
-    if (!InitializeWinsock())
-    {
-        std::cerr << "Failed to initialize Winsock\n";
-        return false;
-    }
-
-    if (!CreateSocket())
-    {
-        std::cerr << "Failed to create socket\n";
-        return false;
-    }
-
-    // Set up remote address
-    remoteAddr_.sin_family = AF_INET;
-    remoteAddr_.sin_port = htons(port);
-    remoteAddr_.sin_addr.s_addr = inet_addr(dst_ip.c_str());
-
-    isSender_ = true;
-    isInitialized_ = true;
-
-    std::cout << "UDP sender initialized: " << dst_ip << ":" << port << std::endl;
-    return true;
-}
-
-bool NetworkUDP::InitUDPReceiver(uint16_t listen_port, const NetworkConfig &config)
-{
-    if (isInitialized_)
-    {
-        std::cerr << "Network already initialized\n";
-        return false;
-    }
-
-    config_ = config;
-    config_.localPort = listen_port;
-
-    if (!InitializeWinsock())
-    {
-        std::cerr << "Failed to initialize Winsock\n";
-        return false;
-    }
-
-    if (!CreateSocket())
-    {
-        std::cerr << "Failed to create socket\n";
-        return false;
-    }
-
-    if (!BindSocket())
-    {
-        std::cerr << "Failed to bind socket\n";
-        return false;
-    }
-
-    // Start receive thread
-    isReceiving_ = true;
-    receiveThread_ = std::thread(&NetworkUDP::ReceiveThread, this);
-
-    isSender_ = false;
-    isInitialized_ = true;
-
-    std::cout << "UDP receiver initialized on port " << listen_port << std::endl;
-    return true;
-}
-
-bool NetworkUDP::SendFrame(const uint8_t *data, size_t size, uint64_t timestamp)
-{
-    if (!isInitialized_ || !isSender_)
-    {
-        return false;
-    }
-
-    PacketHeader header;
-    header.magic = MAGIC_NUMBER;
-    header.sequence = sequenceNumber_++;
-    header.timestamp = timestamp;
-    header.payloadSize = static_cast<uint32_t>(size);
-    header.checksum = CalculateChecksum(data, size);
-
-    return SendPacket(header, data);
-}
-
-bool NetworkUDP::ReceiveFrame(std::vector<uint8_t> &frame_out, uint64_t &timestamp_out)
-{
-    if (!isInitialized_ || isSender_)
-    {
-        return false;
-    }
-
-    std::lock_guard<std::mutex> lock(receiveMutex_);
-
-    if (receiveQueue_.empty())
-    {
-        return false;
-    }
-
-    frame_out = receiveQueue_.front().first;
-    timestamp_out = receiveQueue_.front().second;
-    receiveQueue_.pop();
-
-    return true;
-}
-
-NetworkUDP::NetworkStats NetworkUDP::GetStats() const
-{
-    return stats_;
-}
-
-void NetworkUDP::ResetStats()
-{
-    stats_ = NetworkStats();
-}
-
-void NetworkUDP::SetConfig(const NetworkConfig &config)
-{
-    config_ = config;
-}
-
-bool NetworkUDP::IsInitialized() const
-{
-    return isInitialized_;
-}
-
-void NetworkUDP::Close()
-{
-    if (!isInitialized_)
-        return;
-
-    isReceiving_ = false;
-
-    if (receiveThread_.joinable())
-    {
-        receiveThread_.join();
-    }
-
-    if (socket_ != INVALID_SOCKET)
-    {
-        closesocket(socket_);
-        socket_ = INVALID_SOCKET;
-    }
-
+    CloseSender();
+    CloseReceiver();
     CleanupWinsock();
-    isInitialized_ = false;
 }
 
-// Private methods implementation
 bool NetworkUDP::InitializeWinsock()
 {
-    WSADATA wsaData;
-    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    return result == 0;
-}
-
-bool NetworkUDP::CreateSocket()
-{
-    socket_ = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (socket_ == INVALID_SOCKET)
-    {
-        std::cerr << "Failed to create socket: " << WSAGetLastError() << std::endl;
-        return false;
-    }
-
-    // Set socket options
-    int bufferSize = config_.bufferSize;
-    setsockopt(socket_, SOL_SOCKET, SO_RCVBUF, (char *)&bufferSize, sizeof(bufferSize));
-    setsockopt(socket_, SOL_SOCKET, SO_SNDBUF, (char *)&bufferSize, sizeof(bufferSize));
-
-    // Set timeout
-    DWORD timeout = config_.timeoutMs;
-    setsockopt(socket_, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
-
-    return true;
-}
-
-bool NetworkUDP::BindSocket()
-{
-    sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(config_.localPort);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    int result = bind(socket_, (sockaddr *)&addr, sizeof(addr));
-    if (result == SOCKET_ERROR)
-    {
-        std::cerr << "Failed to bind socket: " << WSAGetLastError() << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-bool NetworkUDP::SetupMulticast()
-{
-    if (!config_.enableMulticast)
+    if (s_winsockInitialized)
     {
         return true;
     }
 
-    // This would set up multicast if needed
+    WSADATA wsaData;
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (result != 0)
+    {
+        LOG_ERROR_FMT("WSAStartup failed: %d", result);
+        return false;
+    }
+
+    s_winsockInitialized = true;
+    LOG_INFO("Winsock initialized successfully");
     return true;
 }
 
 void NetworkUDP::CleanupWinsock()
 {
-    WSACleanup();
+    if (s_winsockInitialized)
+    {
+        WSACleanup();
+        s_winsockInitialized = false;
+        LOG_INFO("Winsock cleaned up");
+    }
 }
 
-bool NetworkUDP::SendPacket(const PacketHeader &header, const uint8_t *payload)
+bool NetworkUDP::InitUDPSender(const std::string &dst_ip, uint16_t port)
 {
-    // Send header
-    int headerSize = sizeof(PacketHeader);
-    int sent = sendto(socket_, (char *)&header, headerSize, 0,
-                      (sockaddr *)&remoteAddr_, sizeof(remoteAddr_));
+    if (m_senderInitialized)
+    {
+        LOG_WARNING("UDP sender already initialized");
+        return true;
+    }
 
-    if (sent != headerSize)
+    if (!InitializeWinsock())
     {
         return false;
     }
 
-    // Send payload
-    sent = sendto(socket_, (char *)payload, header.payloadSize, 0,
-                  (sockaddr *)&remoteAddr_, sizeof(remoteAddr_));
+    LOG_INFO_FMT("Initializing UDP sender to %s:%d", dst_ip.c_str(), port);
 
-    if (sent != static_cast<int>(header.payloadSize))
+    // Create socket
+    m_senderSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (m_senderSocket == INVALID_SOCKET)
     {
+        LOG_ERROR_FMT("Failed to create sender socket: %d", WSAGetLastError());
         return false;
     }
 
-    stats_.packetsSent++;
-    stats_.bytesSent += headerSize + header.payloadSize;
+    // Set socket options
+    int optval = m_bufferSize;
+    if (setsockopt(m_senderSocket, SOL_SOCKET, SO_SNDBUF, (char *)&optval, sizeof(optval)) == SOCKET_ERROR)
+    {
+        LOG_WARNING_FMT("Failed to set send buffer size: %d", WSAGetLastError());
+    }
 
+    // Set timeout
+    DWORD timeout = m_timeoutMs;
+    if (setsockopt(m_senderSocket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) == SOCKET_ERROR)
+    {
+        LOG_WARNING_FMT("Failed to set send timeout: %d", WSAGetLastError());
+    }
+
+    // Setup destination address
+    m_destAddr.sin_family = AF_INET;
+    m_destAddr.sin_port = htons(port);
+    m_destAddr.sin_addr.s_addr = inet_addr(dst_ip.c_str());
+
+    if (m_destAddr.sin_addr.s_addr == INADDR_NONE)
+    {
+        LOG_ERROR_FMT("Invalid destination IP address: %s", dst_ip.c_str());
+        closesocket(m_senderSocket);
+        m_senderSocket = INVALID_SOCKET;
+        return false;
+    }
+
+    m_senderInitialized = true;
+    LOG_INFO("UDP sender initialized successfully");
     return true;
 }
 
-bool NetworkUDP::ReceivePacket(PacketHeader &header, std::vector<uint8_t> &payload)
+bool NetworkUDP::SendFrame(const uint8_t *data, size_t size, uint64_t timestamp)
 {
-    // Receive header
-    int headerSize = sizeof(PacketHeader);
-    sockaddr_in fromAddr;
-    int fromAddrSize = sizeof(fromAddr);
-
-    int received = recvfrom(socket_, (char *)&header, headerSize, 0,
-                            (sockaddr *)&fromAddr, &fromAddrSize);
-
-    if (received != headerSize)
+    if (!m_senderInitialized)
     {
+        LOG_ERROR("UDP sender not initialized");
         return false;
     }
 
-    // Validate header
-    if (header.magic != MAGIC_NUMBER)
+    // Create packet with timestamp
+    struct PacketHeader
     {
-        return false;
-    }
+        uint64_t timestamp;
+        uint32_t data_size;
+        uint32_t sequence_number;
+    };
 
-    // Receive payload
-    payload.resize(header.payloadSize);
-    received = recvfrom(socket_, (char *)payload.data(), header.payloadSize, 0,
-                        (sockaddr *)&fromAddr, &fromAddrSize);
-
-    if (received != static_cast<int>(header.payloadSize))
-    {
-        return false;
-    }
-
-    // Validate checksum
-    if (!ValidatePacket(header, payload.data()))
-    {
-        return false;
-    }
-
-    stats_.packetsReceived++;
-    stats_.bytesReceived += headerSize + header.payloadSize;
-
-    return true;
-}
-
-uint32_t NetworkUDP::CalculateChecksum(const uint8_t *data, size_t size)
-{
-    uint32_t checksum = 0;
-    for (size_t i = 0; i < size; i++)
-    {
-        checksum += data[i];
-    }
-    return checksum;
-}
-
-bool NetworkUDP::ValidatePacket(const PacketHeader &header, const uint8_t *payload)
-{
-    uint32_t calculatedChecksum = CalculateChecksum(payload, header.payloadSize);
-    return calculatedChecksum == header.checksum;
-}
-
-uint64_t NetworkUDP::GetCurrentTimestamp() const
-{
-    auto now = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch());
-    return duration.count();
-}
-
-std::string NetworkUDP::GetLocalIP() const
-{
-    return "127.0.0.1"; // Simplified implementation
-}
-
-bool NetworkUDP::IsValidIP(const std::string &ip) const
-{
-    // Simple IP validation
-    return !ip.empty() && ip != "0.0.0.0";
-}
-
-void NetworkUDP::ReceiveThread()
-{
+    static uint32_t sequence_number = 0;
     PacketHeader header;
-    std::vector<uint8_t> payload;
+    header.timestamp = timestamp;
+    header.data_size = static_cast<uint32_t>(size);
+    header.sequence_number = ++sequence_number;
 
-    while (isReceiving_)
+    // Combine header and data
+    std::vector<uint8_t> packet;
+    packet.reserve(sizeof(header) + size);
+    packet.insert(packet.end(), (uint8_t *)&header, (uint8_t *)&header + sizeof(header));
+    packet.insert(packet.end(), data, data + size);
+
+    // Send packet
+    int result = sendto(m_senderSocket, (char *)packet.data(), static_cast<int>(packet.size()),
+                        0, (sockaddr *)&m_destAddr, sizeof(m_destAddr));
+
+    if (result == SOCKET_ERROR)
     {
-        if (ReceivePacket(header, payload))
-        {
-            std::lock_guard<std::mutex> lock(receiveMutex_);
-
-            if (receiveQueue_.size() < MAX_QUEUE_SIZE)
-            {
-                receiveQueue_.push({payload, header.timestamp});
-            }
-            else
-            {
-                stats_.packetsLost++;
-            }
-        }
-        else
-        {
-            // No packet received, small delay
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+        LOG_ERROR_FMT("Failed to send packet: %d", WSAGetLastError());
+        return false;
     }
+
+    // Update statistics
+    m_stats.packets_sent++;
+    m_stats.bytes_sent += static_cast<uint32_t>(packet.size());
+
+    return true;
+}
+
+void NetworkUDP::CloseSender()
+{
+    if (m_senderSocket != INVALID_SOCKET)
+    {
+        closesocket(m_senderSocket);
+        m_senderSocket = INVALID_SOCKET;
+        m_senderInitialized = false;
+        LOG_INFO("UDP sender closed");
+    }
+}
+
+bool NetworkUDP::InitUDPReceiver(uint16_t listen_port)
+{
+    if (m_receiverInitialized)
+    {
+        LOG_WARNING("UDP receiver already initialized");
+        return true;
+    }
+
+    if (!InitializeWinsock())
+    {
+        return false;
+    }
+
+    LOG_INFO_FMT("Initializing UDP receiver on port %d", listen_port);
+
+    // Create socket
+    m_receiverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (m_receiverSocket == INVALID_SOCKET)
+    {
+        LOG_ERROR_FMT("Failed to create receiver socket: %d", WSAGetLastError());
+        return false;
+    }
+
+    // Set socket options
+    int optval = m_bufferSize;
+    if (setsockopt(m_receiverSocket, SOL_SOCKET, SO_RCVBUF, (char *)&optval, sizeof(optval)) == SOCKET_ERROR)
+    {
+        LOG_WARNING_FMT("Failed to set receive buffer size: %d", WSAGetLastError());
+    }
+
+    // Set timeout
+    DWORD timeout = m_timeoutMs;
+    if (setsockopt(m_receiverSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) == SOCKET_ERROR)
+    {
+        LOG_WARNING_FMT("Failed to set receive timeout: %d", WSAGetLastError());
+    }
+
+    // Bind socket
+    sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(listen_port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(m_receiverSocket, (sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
+    {
+        LOG_ERROR_FMT("Failed to bind receiver socket: %d", WSAGetLastError());
+        closesocket(m_receiverSocket);
+        m_receiverSocket = INVALID_SOCKET;
+        return false;
+    }
+
+    m_receiverInitialized = true;
+    LOG_INFO("UDP receiver initialized successfully");
+    return true;
+}
+
+bool NetworkUDP::ReceiveFrame(std::vector<uint8_t> &frame_out, uint64_t &timestamp)
+{
+    if (!m_receiverInitialized)
+    {
+        LOG_ERROR("UDP receiver not initialized");
+        return false;
+    }
+
+    // Receive packet
+    std::vector<uint8_t> packet(m_bufferSize);
+    sockaddr_in senderAddr;
+    int senderAddrLen = sizeof(senderAddr);
+
+    int result = recvfrom(m_receiverSocket, (char *)packet.data(), static_cast<int>(packet.size()),
+                          0, (sockaddr *)&senderAddr, &senderAddrLen);
+
+    if (result == SOCKET_ERROR)
+    {
+        int error = WSAGetLastError();
+        if (error != WSAETIMEDOUT)
+        {
+            LOG_ERROR_FMT("Failed to receive packet: %d", error);
+        }
+        return false;
+    }
+
+    if (result < static_cast<int>(sizeof(uint64_t) + sizeof(uint32_t) * 2))
+    {
+        LOG_WARNING("Received packet too small");
+        return false;
+    }
+
+    // Parse packet header
+    struct PacketHeader
+    {
+        uint64_t timestamp;
+        uint32_t data_size;
+        uint32_t sequence_number;
+    };
+
+    PacketHeader *header = (PacketHeader *)packet.data();
+    size_t headerSize = sizeof(PacketHeader);
+    size_t dataSize = header->data_size;
+
+    if (result < static_cast<int>(headerSize + dataSize))
+    {
+        LOG_WARNING("Packet size mismatch");
+        return false;
+    }
+
+    // Extract frame data
+    frame_out.assign(packet.begin() + headerSize, packet.begin() + headerSize + dataSize);
+    timestamp = header->timestamp;
+
+    // Update statistics
+    m_stats.packets_received++;
+    m_stats.bytes_received += static_cast<uint32_t>(result);
+
+    // Calculate latency (simplified)
+    auto now = std::chrono::steady_clock::now();
+    auto packet_time = std::chrono::steady_clock::time_point(std::chrono::nanoseconds(timestamp));
+    auto latency = std::chrono::duration_cast<std::chrono::microseconds>(now - packet_time);
+    m_stats.avg_latency_ms = (m_stats.avg_latency_ms * (m_stats.packets_received - 1) + latency.count() / 1000.0f) / m_stats.packets_received;
+
+    return true;
+}
+
+void NetworkUDP::CloseReceiver()
+{
+    if (m_receiverSocket != INVALID_SOCKET)
+    {
+        closesocket(m_receiverSocket);
+        m_receiverSocket = INVALID_SOCKET;
+        m_receiverInitialized = false;
+        LOG_INFO("UDP receiver closed");
+    }
+}
+
+NetworkUDP::NetworkStats NetworkUDP::GetStats() const
+{
+    return m_stats;
+}
+
+void NetworkUDP::ResetStats()
+{
+    memset(&m_stats, 0, sizeof(m_stats));
+    LOG_INFO("Network statistics reset");
+}
+
+void NetworkUDP::SetBufferSize(int buffer_size)
+{
+    m_bufferSize = buffer_size;
+    LOG_INFO_FMT("Buffer size set to %d bytes", buffer_size);
+}
+
+void NetworkUDP::SetTimeout(int timeout_ms)
+{
+    m_timeoutMs = timeout_ms;
+    LOG_INFO_FMT("Timeout set to %d ms", timeout_ms);
 }
