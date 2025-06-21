@@ -12,6 +12,7 @@
 // Global variables for graceful shutdown
 std::atomic<bool> g_running(true);
 std::atomic<uint64_t> g_frameCounter(0);
+std::atomic<uint32_t> g_sequenceCounter(0);
 
 // Signal handler for graceful shutdown
 void SignalHandler(int signal)
@@ -24,7 +25,7 @@ void SignalHandler(int signal)
 }
 
 // Statistics display thread
-void StatisticsThread(NetworkUDP *network)
+void StatisticsThread(NetworkUDP *network, JitterBuffer *jitterBuffer)
 {
     auto lastTime = std::chrono::high_resolution_clock::now();
     uint64_t lastFrameCounter = 0;
@@ -41,8 +42,9 @@ void StatisticsThread(NetworkUDP *network)
         uint64_t framesInPeriod = currentFrameCounter - lastFrameCounter;
         float frameRate = (framesInPeriod * 1000.0f) / duration.count();
 
-        // Get network statistics
+        // Get network and jitter buffer statistics
         auto networkStats = network->GetStats();
+        auto jitterStats = jitterBuffer->GetStats();
 
         // Display statistics
         LOG_INFO("=== Receiver Statistics ===");
@@ -51,6 +53,14 @@ void StatisticsThread(NetworkUDP *network)
         LOG_INFO_FMT("Network - Received: {}, Lost: {}, Avg Latency: {:.2f} ms",
                      networkStats.packets_received, networkStats.packets_lost, networkStats.avg_latency_ms);
         LOG_INFO_FMT("Network - Bytes Received: {}", networkStats.bytes_received);
+        LOG_INFO("=== Jitter Buffer Stats ===");
+        LOG_INFO_FMT("Current Latency: {} ms, Target: {} ms",
+                     jitterStats.current_latency_ms, jitterStats.target_latency_ms);
+        LOG_INFO_FMT("Buffer Occupancy: {}%, Frames Buffered: {}",
+                     jitterStats.buffer_occupancy_percent, jitterStats.frames_buffered);
+        LOG_INFO_FMT("Frames Dropped: {}, Reordered: {}, Total Received: {}",
+                     jitterStats.frames_dropped, jitterStats.frames_reordered, jitterStats.total_frames_received);
+        LOG_INFO_FMT("Average Jitter: {:.2f} ms", jitterStats.avg_jitter_ms);
         LOG_INFO("==========================");
 
         lastTime = currentTime;
@@ -59,31 +69,59 @@ void StatisticsThread(NetworkUDP *network)
 }
 
 // Main receiver loop
-void ReceiverLoop(NetworkUDP &network)
+void ReceiverLoop(NetworkUDP &network, JitterBuffer &jitterBuffer)
 {
-    std::vector<uint8_t> frame;
-    uint64_t timestamp;
+    std::vector<uint8_t> packet;
+    uint64_t networkTimestamp;
 
     LOG_INFO("Starting receiver loop...");
 
     while (g_running)
     {
-        // Try to receive next audio frame
-        if (network.ReceiveFrame(frame, timestamp))
+        // Try to receive next audio packet
+        if (network.ReceiveFrame(packet, networkTimestamp))
         {
-            g_frameCounter++;
-
-            // Calculate latency
-            auto now = std::chrono::high_resolution_clock::now();
-            auto duration = now.time_since_epoch();
-            uint64_t currentTime = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
-            uint64_t latency = currentTime - timestamp;
-
-            // Log first few frames for debugging
-            if (g_frameCounter.load() <= 5)
+            // Check if packet is large enough to contain header
+            if (packet.size() < sizeof(uint32_t) + sizeof(uint64_t))
             {
-                LOG_INFO_FMT("Received frame {}: {} bytes, latency: {} us",
-                             g_frameCounter.load(), frame.size(), latency);
+                LOG_WARNING("Received packet too small, skipping");
+                continue;
+            }
+
+            // Extract sequence number (first 4 bytes)
+            uint32_t sequenceNumber;
+            memcpy(&sequenceNumber, packet.data(), sizeof(uint32_t));
+
+            // Extract timestamp (next 8 bytes)
+            uint64_t timestamp;
+            memcpy(&timestamp, packet.data() + sizeof(uint32_t), sizeof(uint64_t));
+
+            // Extract audio frame data (remaining bytes)
+            std::vector<uint8_t> frame;
+            size_t frameSize = packet.size() - sizeof(uint32_t) - sizeof(uint64_t);
+            frame.assign(packet.begin() + sizeof(uint32_t) + sizeof(uint64_t), packet.end());
+
+            // Push frame into jitter buffer
+            jitterBuffer.PushFrame(frame, timestamp, sequenceNumber);
+
+            // Try to get frames from jitter buffer
+            std::vector<uint8_t> outputFrame;
+            while (jitterBuffer.GetFrame(outputFrame))
+            {
+                g_frameCounter++;
+
+                // Calculate latency
+                auto now = std::chrono::high_resolution_clock::now();
+                auto duration = now.time_since_epoch();
+                uint64_t currentTime = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+                uint64_t latency = currentTime - timestamp;
+
+                // Log first few frames for debugging
+                if (g_frameCounter.load() <= 5)
+                {
+                    LOG_INFO_FMT("Processed frame {} (seq: {}): {} bytes, latency: {} us",
+                                 g_frameCounter.load(), sequenceNumber, outputFrame.size(), latency);
+                }
             }
         }
         else
@@ -116,6 +154,22 @@ bool InitializeNetworkReceiver(NetworkUDP &network)
     return true;
 }
 
+// Initialize jitter buffer
+bool InitializeJitterBuffer(JitterBuffer &jitterBuffer)
+{
+    LOG_INFO("Initializing jitter buffer...");
+
+    // Configure jitter buffer
+    jitterBuffer.SetTargetLatencyMs(g_config.audio.target_latency_ms);
+    jitterBuffer.SetMaxLatencyMs(g_config.audio.max_latency_ms);
+    jitterBuffer.SetFrameSize(g_config.audio.frame_size);
+    jitterBuffer.SetSampleRate(g_config.audio.sample_rate);
+    jitterBuffer.SetChannels(g_config.audio.channels);
+
+    LOG_INFO("Jitter buffer initialized successfully");
+    return true;
+}
+
 // Main function
 int main(int argc, char *argv[])
 {
@@ -134,6 +188,8 @@ int main(int argc, char *argv[])
             std::cout << "  --port <port>      Listen port (default: 8889)\n";
             std::cout << "  --buffer <size>    Network buffer size (default: 65536)\n";
             std::cout << "  --timeout <ms>     Network timeout (default: 1000)\n";
+            std::cout << "  --target-latency <ms> Jitter buffer target latency (default: 100)\n";
+            std::cout << "  --max-latency <ms> Jitter buffer max latency (default: 200)\n";
             std::cout << "  --stats-interval <ms> Statistics display interval (default: 1000)\n";
             std::cout << "  --help, -h         Show this help message\n";
             return 0;
@@ -150,6 +206,14 @@ int main(int argc, char *argv[])
         {
             g_config.network.timeout_ms = std::stoi(argv[++i]);
         }
+        else if (arg == "--target-latency" && i + 1 < argc)
+        {
+            g_config.audio.target_latency_ms = std::stoi(argv[++i]);
+        }
+        else if (arg == "--max-latency" && i + 1 < argc)
+        {
+            g_config.audio.max_latency_ms = std::stoi(argv[++i]);
+        }
         else if (arg == "--stats-interval" && i + 1 < argc)
         {
             g_config.stats_interval_ms = std::stoi(argv[++i]);
@@ -162,13 +226,16 @@ int main(int argc, char *argv[])
     LOG_INFO("Configuration:");
     LOG_INFO_FMT("  Network: port={}, buffer={}, timeout={}ms",
                  g_config.network.receiver_port, g_config.network.buffer_size, g_config.network.timeout_ms);
+    LOG_INFO_FMT("  Jitter Buffer: target={}ms, max={}ms",
+                 g_config.audio.target_latency_ms, g_config.audio.max_latency_ms);
 
     // Set up signal handlers for graceful shutdown
     signal(SIGINT, SignalHandler);
     signal(SIGTERM, SignalHandler);
 
-    // Initialize network receiver
+    // Initialize components
     NetworkUDP network;
+    JitterBuffer jitterBuffer;
 
     if (!InitializeNetworkReceiver(network))
     {
@@ -176,11 +243,17 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    if (!InitializeJitterBuffer(jitterBuffer))
+    {
+        LOG_ERROR("Failed to initialize jitter buffer");
+        return 1;
+    }
+
     // Start statistics thread
-    std::thread statsThread(StatisticsThread, &network);
+    std::thread statsThread(StatisticsThread, &network, &jitterBuffer);
 
     // Main receiver loop
-    ReceiverLoop(network);
+    ReceiverLoop(network, jitterBuffer);
 
     // Cleanup
     LOG_INFO("Cleaning up...");
@@ -197,12 +270,18 @@ int main(int argc, char *argv[])
 
     // Final statistics
     auto finalStats = network.GetStats();
+    auto finalJitterStats = jitterBuffer.GetStats();
     LOG_INFO("=== Final Statistics ===");
     LOG_INFO_FMT("Total frames received: {}", g_frameCounter.load());
     LOG_INFO_FMT("Network packets received: {}", finalStats.packets_received);
     LOG_INFO_FMT("Network packets lost: {}", finalStats.packets_lost);
     LOG_INFO_FMT("Network bytes received: {}", finalStats.bytes_received);
     LOG_INFO_FMT("Average latency: {:.2f} ms", finalStats.avg_latency_ms);
+    LOG_INFO("=== Jitter Buffer Final Stats ===");
+    LOG_INFO_FMT("Frames buffered: {}", finalJitterStats.frames_buffered);
+    LOG_INFO_FMT("Frames dropped: {}", finalJitterStats.frames_dropped);
+    LOG_INFO_FMT("Frames reordered: {}", finalJitterStats.frames_reordered);
+    LOG_INFO_FMT("Average jitter: {:.2f} ms", finalJitterStats.avg_jitter_ms);
     LOG_INFO("=======================");
 
     LOG_INFO("=== AudioSync Receiver Shutdown Complete ===");

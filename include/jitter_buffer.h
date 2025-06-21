@@ -80,7 +80,7 @@ private:
     std::vector<float> m_jitterHistory;
 
     // Helper methods
-    void UpdateStats();
+    void UpdateStats() const;
     void AdaptiveBufferAdjustment();
     bool IsFrameTooOld(const AudioFrame &frame) const;
     void ReorderFrames();

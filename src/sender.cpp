@@ -11,6 +11,7 @@
 // Global variables for graceful shutdown
 std::atomic<bool> g_running(true);
 std::atomic<uint64_t> g_frameCounter(0);
+std::atomic<uint32_t> g_sequenceCounter(0);
 
 // Signal handler for graceful shutdown
 void SignalHandler(int signal)
@@ -72,8 +73,24 @@ void AudioFrameCallback(const std::vector<uint8_t> &frame, NetworkUDP *network)
     auto duration = now.time_since_epoch();
     uint64_t timestamp = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
 
-    // Send frame over network
-    if (network->SendFrame(frame.data(), frame.size(), timestamp))
+    // Generate sequence number for this frame
+    uint32_t sequenceNumber = g_sequenceCounter++;
+
+    // Create packet with sequence number and timestamp
+    std::vector<uint8_t> packet;
+    packet.resize(sizeof(uint32_t) + sizeof(uint64_t) + frame.size());
+
+    // Add sequence number (4 bytes)
+    memcpy(packet.data(), &sequenceNumber, sizeof(uint32_t));
+
+    // Add timestamp (8 bytes)
+    memcpy(packet.data() + sizeof(uint32_t), &timestamp, sizeof(uint64_t));
+
+    // Add audio frame data
+    memcpy(packet.data() + sizeof(uint32_t) + sizeof(uint64_t), frame.data(), frame.size());
+
+    // Send packet over network
+    if (network->SendFrame(packet.data(), packet.size(), timestamp))
     {
         g_frameCounter++;
     }
@@ -100,8 +117,24 @@ void SenderLoop(AudioCapture &audioCapture, NetworkUDP &network)
             auto duration = now.time_since_epoch();
             uint64_t timestamp = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
 
-            // Send frame over network
-            if (network.SendFrame(frame.data(), frame.size(), timestamp))
+            // Generate sequence number for this frame
+            uint32_t sequenceNumber = g_sequenceCounter++;
+
+            // Create packet with sequence number and timestamp
+            std::vector<uint8_t> packet;
+            packet.resize(sizeof(uint32_t) + sizeof(uint64_t) + frame.size());
+
+            // Add sequence number (4 bytes)
+            memcpy(packet.data(), &sequenceNumber, sizeof(uint32_t));
+
+            // Add timestamp (8 bytes)
+            memcpy(packet.data() + sizeof(uint32_t), &timestamp, sizeof(uint64_t));
+
+            // Add audio frame data
+            memcpy(packet.data() + sizeof(uint32_t) + sizeof(uint64_t), frame.data(), frame.size());
+
+            // Send packet over network
+            if (network.SendFrame(packet.data(), packet.size(), timestamp))
             {
                 g_frameCounter++;
             }
