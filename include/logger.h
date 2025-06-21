@@ -5,6 +5,8 @@
 #include <mutex>
 #include <memory>
 #include <sstream>
+#include <iomanip>
+#include <type_traits>
 
 enum class LogLevel
 {
@@ -64,22 +66,60 @@ private:
     Logger(const Logger &) = delete;
     Logger &operator=(const Logger &) = delete;
 
-    std::string FormatString(const std::string &format)
+    // Base case
+    std::string FormatString(const std::string &format) { return format; }
+
+    // Floating-point specialization for {:.2f}
+    template <typename T, typename... Args>
+    typename std::enable_if<std::is_floating_point<T>::value, std::string>::type
+    FormatString(const std::string &format, T value, Args... args)
     {
+        size_t pos = format.find("{:.2f}");
+        if (pos != std::string::npos)
+        {
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(2) << value;
+            std::string result = format.substr(0, pos) + oss.str() + format.substr(pos + 6);
+            return FormatString(result, args...);
+        }
+        // Fallback to {} if {:.2f} not found
+        pos = format.find("{}");
+        if (pos != std::string::npos)
+        {
+            std::ostringstream oss;
+            oss << value;
+            std::string result = format.substr(0, pos) + oss.str() + format.substr(pos + 2);
+            return FormatString(result, args...);
+        }
         return format;
     }
+
+    // General case for non-floating-point types
     template <typename T, typename... Args>
-    std::string FormatString(const std::string &format, T value, Args... args)
+    typename std::enable_if<!std::is_floating_point<T>::value, std::string>::type
+    FormatString(const std::string &format, T value, Args... args)
+    {
+        size_t pos = format.find("{}");
+        if (pos != std::string::npos)
+        {
+            std::ostringstream oss;
+            oss << value;
+            std::string result = format.substr(0, pos) + oss.str() + format.substr(pos + 2);
+            return FormatString(result, args...);
+        }
+        return format;
+    }
+
+    // Overload for const char*
+    std::string FormatString(const std::string &format, const char *value)
     {
         size_t pos = format.find("{}");
         if (pos == std::string::npos)
-        {
             return format;
-        }
         std::ostringstream oss;
         oss << value;
         std::string result = format.substr(0, pos) + oss.str() + format.substr(pos + 2);
-        return FormatString(result, args...);
+        return result;
     }
 
     std::string GetTimestamp();

@@ -211,6 +211,7 @@ src/config.obj: src/config.cpp.obj
 # target to build an object file
 src/config.cpp.obj:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\sender.dir\build.make CMakeFiles/sender.dir/src/config.cpp.obj
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\receiver.dir\build.make CMakeFiles/receiver.dir/src/config.cpp.obj
 .PHONY : src/config.cpp.obj
 
 src/config.i: src/config.cpp.i
@@ -219,6 +220,7 @@ src/config.i: src/config.cpp.i
 # target to preprocess a source file
 src/config.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\sender.dir\build.make CMakeFiles/sender.dir/src/config.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\receiver.dir\build.make CMakeFiles/receiver.dir/src/config.cpp.i
 .PHONY : src/config.cpp.i
 
 src/config.s: src/config.cpp.s
@@ -227,6 +229,7 @@ src/config.s: src/config.cpp.s
 # target to generate assembly for a file
 src/config.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\sender.dir\build.make CMakeFiles/sender.dir/src/config.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\receiver.dir\build.make CMakeFiles/receiver.dir/src/config.cpp.s
 .PHONY : src/config.cpp.s
 
 src/jitter_buffer.obj: src/jitter_buffer.cpp.obj

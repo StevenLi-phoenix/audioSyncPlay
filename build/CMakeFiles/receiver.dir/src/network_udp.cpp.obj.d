@@ -312,4 +312,16 @@ CMakeFiles/receiver.dir/src/network_udp.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/backward/auto_ptr.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/sstream \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/sstream.tcc \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iomanip \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/locale \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/locale_facets_nonio.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/time_members.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/messages_members.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/locale_facets_nonio.tcc \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/locale_conv.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stringfwd.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/allocator.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/codecvt.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/unique_ptr.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/quoted_string.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iostream

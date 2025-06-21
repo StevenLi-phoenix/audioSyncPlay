@@ -90,7 +90,7 @@ clean: CMakeFiles/receiver.dir/clean
 CMakeFiles/test_audio_capture.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_audio_capture.dir\build.make CMakeFiles/test_audio_capture.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_audio_capture.dir\build.make CMakeFiles/test_audio_capture.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles --progress-num=13,14,15,16 "Built target test_audio_capture"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles --progress-num=14,15,16,17 "Built target test_audio_capture"
 .PHONY : CMakeFiles/test_audio_capture.dir/all
 
 # Build rule for subdir invocation for target.
@@ -121,7 +121,7 @@ CMakeFiles/test_audio_capture.dir/clean:
 CMakeFiles/sender.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\sender.dir\build.make CMakeFiles/sender.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\sender.dir\build.make CMakeFiles/sender.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles --progress-num=7,8,9,10,11,12 "Built target sender"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles --progress-num=8,9,10,11,12,13 "Built target sender"
 .PHONY : CMakeFiles/sender.dir/all
 
 # Build rule for subdir invocation for target.
@@ -152,12 +152,12 @@ CMakeFiles/sender.dir/clean:
 CMakeFiles/receiver.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\receiver.dir\build.make CMakeFiles/receiver.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\receiver.dir\build.make CMakeFiles/receiver.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles --progress-num=1,2,3,4,5,6 "Built target receiver"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles --progress-num=1,2,3,4,5,6,7 "Built target receiver"
 .PHONY : CMakeFiles/receiver.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/receiver.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles 6
+	$(CMAKE_COMMAND) -E cmake_progress_start D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles 7
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Makefile2 CMakeFiles/receiver.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles 0
 .PHONY : CMakeFiles/receiver.dir/rule

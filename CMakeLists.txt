@@ -44,6 +44,7 @@ add_executable(receiver
     src/network_udp.cpp
     src/jitter_buffer.cpp
     src/logger.cpp
+    src/config.cpp
 )
 target_link_libraries(receiver ${WINSOCK} ${WASAPI})
 

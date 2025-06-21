@@ -1,6 +1,6 @@
-CMakeFiles/receiver.dir/src/logger.cpp.obj: \
- D:\Documents\PythonProjects\audioSyncPlay\src\logger.cpp \
- D:/Documents/PythonProjects/audioSyncPlay/include/logger.h \
+CMakeFiles/receiver.dir/src/config.cpp.obj: \
+ D:\Documents\PythonProjects\audioSyncPlay\src\config.cpp \
+ D:/Documents/PythonProjects/audioSyncPlay/include/config.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/string \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/c++config.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/os_defines.h \
@@ -98,6 +98,7 @@ CMakeFiles/receiver.dir/src/logger.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/functional_hash.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/hash_bytes.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/basic_string.tcc \
+ D:/Documents/PythonProjects/audioSyncPlay/include/logger.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/fstream \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/istream \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/ios \
@@ -169,8 +170,4 @@ CMakeFiles/receiver.dir/src/logger.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/codecvt.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/unique_ptr.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/quoted_string.h \
- C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iostream \
- C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/cstdarg \
- C:/lishuyu/miniconda/Library/mingw-w64/lib/gcc/x86_64-w64-mingw32/5.3.0/include/stdarg.h \
- C:/lishuyu/miniconda/Library/mingw-w64/x86_64-w64-mingw32/include/stdarg.h \
- C:/lishuyu/miniconda/Library/mingw-w64/x86_64-w64-mingw32/include/_mingw_stdarg.h
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iostream
