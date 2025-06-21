@@ -52,6 +52,7 @@ add_executable(receiver
     src/jitter_buffer.cpp
     src/logger.cpp
     src/config.cpp
+    src/clock_sync.cpp
 )
 target_link_libraries(receiver ${WINSOCK} ${WASAPI})
 

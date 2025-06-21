@@ -249,6 +249,42 @@ void AudioPlayback::SetVolume(float volume)
     LOG_INFO_FMT("Volume set to: {:.2f}", m_volume);
 }
 
+float AudioPlayback::GetVolume() const
+{
+    return m_volume;
+}
+
+void AudioPlayback::Mute()
+{
+    m_volume = 0.0f;
+    m_stats.current_volume = m_volume;
+    LOG_INFO("Audio muted");
+}
+
+void AudioPlayback::Unmute()
+{
+    m_volume = 1.0f;
+    m_stats.current_volume = m_volume;
+    LOG_INFO("Audio unmuted");
+}
+
+bool AudioPlayback::IsMuted() const
+{
+    return m_volume == 0.0f;
+}
+
+void AudioPlayback::IncreaseVolume(float delta)
+{
+    float newVolume = std::min(1.0f, m_volume + delta);
+    SetVolume(newVolume);
+}
+
+void AudioPlayback::DecreaseVolume(float delta)
+{
+    float newVolume = std::max(0.0f, m_volume - delta);
+    SetVolume(newVolume);
+}
+
 std::vector<std::string> AudioPlayback::GetAvailableDevices() const
 {
     std::vector<std::string> devices;

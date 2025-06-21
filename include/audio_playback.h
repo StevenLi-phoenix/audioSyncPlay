@@ -44,6 +44,16 @@ public:
     void SetBitsPerSample(uint32_t bits_per_sample);
     void SetFrameSize(uint32_t frame_size);
 
+    // Volume control
+    float GetVolume() const;
+    void Mute();
+    void Unmute();
+    bool IsMuted() const;
+
+    // Runtime volume adjustment
+    void IncreaseVolume(float delta = 0.1f);
+    void DecreaseVolume(float delta = 0.1f);
+
 private:
     // WASAPI members
     IMMDeviceEnumerator *m_deviceEnumerator;

@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "D:/Documents/PythonProjects/audioSyncPlay/src/audio_playback.cpp" "CMakeFiles/receiver.dir/src/audio_playback.cpp.obj" "gcc" "CMakeFiles/receiver.dir/src/audio_playback.cpp.obj.d"
+  "D:/Documents/PythonProjects/audioSyncPlay/src/clock_sync.cpp" "CMakeFiles/receiver.dir/src/clock_sync.cpp.obj" "gcc" "CMakeFiles/receiver.dir/src/clock_sync.cpp.obj.d"
   "D:/Documents/PythonProjects/audioSyncPlay/src/config.cpp" "CMakeFiles/receiver.dir/src/config.cpp.obj" "gcc" "CMakeFiles/receiver.dir/src/config.cpp.obj.d"
   "D:/Documents/PythonProjects/audioSyncPlay/src/jitter_buffer.cpp" "CMakeFiles/receiver.dir/src/jitter_buffer.cpp.obj" "gcc" "CMakeFiles/receiver.dir/src/jitter_buffer.cpp.obj.d"
   "D:/Documents/PythonProjects/audioSyncPlay/src/logger.cpp" "CMakeFiles/receiver.dir/src/logger.cpp.obj" "gcc" "CMakeFiles/receiver.dir/src/logger.cpp.obj.d"

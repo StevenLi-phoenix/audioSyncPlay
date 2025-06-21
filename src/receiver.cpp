@@ -1,6 +1,7 @@
 #include "audio_playback.h"
 #include "network_udp.h"
 #include "jitter_buffer.h"
+#include "clock_sync.h"
 #include "logger.h"
 #include "config.h"
 #include <iostream>
@@ -25,7 +26,7 @@ void SignalHandler(int signal)
 }
 
 // Statistics display thread
-void StatisticsThread(NetworkUDP *network, JitterBuffer *jitterBuffer, AudioPlayback *audioPlayback)
+void StatisticsThread(NetworkUDP *network, JitterBuffer *jitterBuffer, AudioPlayback *audioPlayback, ClockSync *clockSync)
 {
     auto lastTime = std::chrono::high_resolution_clock::now();
     uint64_t lastFrameCounter = 0;
@@ -42,10 +43,11 @@ void StatisticsThread(NetworkUDP *network, JitterBuffer *jitterBuffer, AudioPlay
         uint64_t framesInPeriod = currentFrameCounter - lastFrameCounter;
         float frameRate = (framesInPeriod * 1000.0f) / duration.count();
 
-        // Get network, jitter buffer, and audio playback statistics
+        // Get network, jitter buffer, audio playback, and clock sync statistics
         auto networkStats = network->GetStats();
         auto jitterStats = jitterBuffer->GetStats();
         auto playbackStats = audioPlayback->GetStats();
+        auto clockStats = clockSync->GetStats();
 
         // Display statistics
         LOG_INFO("=== Receiver Statistics ===");
@@ -62,6 +64,11 @@ void StatisticsThread(NetworkUDP *network, JitterBuffer *jitterBuffer, AudioPlay
         LOG_INFO_FMT("Frames Dropped: {}, Reordered: {}, Total Received: {}",
                      jitterStats.frames_dropped, jitterStats.frames_reordered, jitterStats.total_frames_received);
         LOG_INFO_FMT("Average Jitter: {:.2f} ms", jitterStats.avg_jitter_ms);
+        LOG_INFO("=== Clock Sync Stats ===");
+        LOG_INFO_FMT("Sync Quality: {}%, Samples: {}, Synchronized: {}",
+                     clockStats.sync_quality, clockStats.sync_samples, clockStats.is_synchronized ? "Yes" : "No");
+        LOG_INFO_FMT("Drift Rate: {:.2f} ppm, Avg Drift: {:.2f} ms",
+                     clockStats.drift_rate_ppm, clockStats.avg_drift_ms);
         LOG_INFO("=== Audio Playback Stats ===");
         LOG_INFO_FMT("Status: {}, Volume: {:.2f}",
                      playbackStats.is_playing ? "Playing" : "Stopped", playbackStats.current_volume);
@@ -77,7 +84,7 @@ void StatisticsThread(NetworkUDP *network, JitterBuffer *jitterBuffer, AudioPlay
 }
 
 // Main receiver loop
-void ReceiverLoop(NetworkUDP &network, JitterBuffer &jitterBuffer, AudioPlayback &audioPlayback)
+void ReceiverLoop(NetworkUDP &network, JitterBuffer &jitterBuffer, AudioPlayback &audioPlayback, ClockSync &clockSync)
 {
     std::vector<uint8_t> packet;
     uint64_t networkTimestamp;
@@ -115,6 +122,14 @@ void ReceiverLoop(NetworkUDP &network, JitterBuffer &jitterBuffer, AudioPlayback
             std::vector<uint8_t> frame;
             size_t frameSize = packet.size() - minHeaderSize;
             frame.assign(packet.begin() + minHeaderSize, packet.end());
+
+            // Get local receive time for clock sync
+            auto now = std::chrono::high_resolution_clock::now();
+            auto duration = now.time_since_epoch();
+            uint64_t localReceiveTime = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+
+            // Update clock synchronization
+            clockSync.SyncWithSender(timestamp, localReceiveTime);
 
             // Check if format conversion is needed
             if (sampleRate != g_config.audio.sample_rate ||
@@ -155,21 +170,14 @@ void ReceiverLoop(NetworkUDP &network, JitterBuffer &jitterBuffer, AudioPlayback
                     LOG_DEBUG_FMT("Failed to play frame {}", g_frameCounter.load());
                 }
 
-                // Calculate latency (fix the negative latency issue)
-                auto now = std::chrono::high_resolution_clock::now();
-                auto duration = now.time_since_epoch();
-                uint64_t currentTime = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
-
-                // Ensure positive latency calculation
+                // Calculate latency using clock sync
+                uint64_t adjustedTimestamp = clockSync.GetAdjustedTimestamp(timestamp);
+                uint64_t currentTime = clockSync.GetLocalTimestamp();
                 uint64_t latency = 0;
-                if (currentTime > timestamp)
+
+                if (currentTime > adjustedTimestamp)
                 {
-                    latency = currentTime - timestamp;
-                }
-                else
-                {
-                    // Handle clock drift or timestamp issues
-                    latency = 0;
+                    latency = currentTime - adjustedTimestamp;
                 }
 
                 // Log first few frames for debugging
@@ -177,6 +185,12 @@ void ReceiverLoop(NetworkUDP &network, JitterBuffer &jitterBuffer, AudioPlayback
                 {
                     LOG_INFO_FMT("Processed and played frame {} (seq: {}): {} bytes, latency: {} us",
                                  g_frameCounter.load(), sequenceNumber, outputFrame.size(), latency);
+                }
+
+                // Log clock sync summary every 1000 frames
+                if (g_frameCounter.load() % 1000 == 0)
+                {
+                    LOG_INFO(clockSync.GetSummaryString());
                 }
             }
         }
@@ -336,6 +350,7 @@ int main(int argc, char *argv[])
     NetworkUDP network;
     JitterBuffer jitterBuffer;
     AudioPlayback audioPlayback;
+    ClockSync clockSync;
 
     if (!InitializeNetworkReceiver(network))
     {
@@ -359,10 +374,10 @@ int main(int argc, char *argv[])
     audioPlayback.SetVolume(g_config.audio.volume);
 
     // Start statistics thread
-    std::thread statsThread(StatisticsThread, &network, &jitterBuffer, &audioPlayback);
+    std::thread statsThread(StatisticsThread, &network, &jitterBuffer, &audioPlayback, &clockSync);
 
     // Main receiver loop
-    ReceiverLoop(network, jitterBuffer, audioPlayback);
+    ReceiverLoop(network, jitterBuffer, audioPlayback, clockSync);
 
     // Cleanup
     LOG_INFO("Cleaning up...");
@@ -390,6 +405,10 @@ int main(int argc, char *argv[])
     LOG_INFO_FMT("Network packets lost: {}", finalStats.packets_lost);
     LOG_INFO_FMT("Network bytes received: {}", finalStats.bytes_received);
     LOG_INFO_FMT("Average latency: {:.2f} ms", finalStats.avg_latency_ms);
+
+    // Print clock sync summary
+    clockSync.PrintSummary();
+
     LOG_INFO("=== Jitter Buffer Final Stats ===");
     LOG_INFO_FMT("Frames buffered: {}", finalJitterStats.frames_buffered);
     LOG_INFO_FMT("Frames dropped: {}", finalJitterStats.frames_dropped);
@@ -399,7 +418,7 @@ int main(int argc, char *argv[])
     LOG_INFO_FMT("Frames played: {}", finalPlaybackStats.frames_played);
     LOG_INFO_FMT("Frames dropped: {}", finalPlaybackStats.frames_dropped);
     LOG_INFO_FMT("Buffer underruns: {}", finalPlaybackStats.buffer_underruns);
-    LOG_INFO("=======================");
+    LOG_INFO("======================");
 
     LOG_INFO("=== AudioSync Receiver with Playback Shutdown Complete ===");
     return 0;

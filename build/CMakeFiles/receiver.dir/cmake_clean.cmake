@@ -1,6 +1,8 @@
 file(REMOVE_RECURSE
   "CMakeFiles/receiver.dir/src/audio_playback.cpp.obj"
   "CMakeFiles/receiver.dir/src/audio_playback.cpp.obj.d"
+  "CMakeFiles/receiver.dir/src/clock_sync.cpp.obj"
+  "CMakeFiles/receiver.dir/src/clock_sync.cpp.obj.d"
   "CMakeFiles/receiver.dir/src/config.cpp.obj"
   "CMakeFiles/receiver.dir/src/config.cpp.obj.d"
   "CMakeFiles/receiver.dir/src/jitter_buffer.cpp.obj"

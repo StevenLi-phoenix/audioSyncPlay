@@ -319,6 +319,19 @@ CMakeFiles/receiver.dir/src/receiver.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/x86_64-w64-mingw32/include/time.h \
  C:/lishuyu/miniconda/Library/mingw-w64/x86_64-w64-mingw32/include/pthread_time.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/parse_numbers.h \
+ D:/Documents/PythonProjects/audioSyncPlay/include/clock_sync.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/algorithm \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_algo.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/algorithmfwd.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_tempbuf.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/random \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/cmath \
+ C:/lishuyu/miniconda/Library/mingw-w64/x86_64-w64-mingw32/include/math.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/random.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/opt_random.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/random.tcc \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/numeric \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_numeric.h \
  D:/Documents/PythonProjects/audioSyncPlay/include/logger.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/fstream \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/istream \
@@ -350,7 +363,6 @@ CMakeFiles/receiver.dir/src/receiver.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/functional \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/typeinfo \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/memory \
- C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_tempbuf.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_raw_storage_iter.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/ext/concurrence.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/unique_ptr.h \
