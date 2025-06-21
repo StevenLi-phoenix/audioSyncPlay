@@ -33,6 +33,7 @@ add_executable(sender
     src/audio_capture.cpp
     src/network_udp.cpp
     src/logger.cpp
+    src/config.cpp
 )
 target_link_libraries(sender ${WINSOCK} ${WASAPI})
 

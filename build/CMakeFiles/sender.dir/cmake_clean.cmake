@@ -1,6 +1,8 @@
 file(REMOVE_RECURSE
   "CMakeFiles/sender.dir/src/audio_capture.cpp.obj"
   "CMakeFiles/sender.dir/src/audio_capture.cpp.obj.d"
+  "CMakeFiles/sender.dir/src/config.cpp.obj"
+  "CMakeFiles/sender.dir/src/config.cpp.obj.d"
   "CMakeFiles/sender.dir/src/logger.cpp.obj"
   "CMakeFiles/sender.dir/src/logger.cpp.obj.d"
   "CMakeFiles/sender.dir/src/network_udp.cpp.obj"

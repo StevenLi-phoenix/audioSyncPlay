@@ -351,4 +351,7 @@ CMakeFiles/sender.dir/src/sender.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/parse_numbers.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/sstream \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/sstream.tcc \
- C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iostream
+ D:/Documents/PythonProjects/audioSyncPlay/include/config.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iostream \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/thread \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/atomic

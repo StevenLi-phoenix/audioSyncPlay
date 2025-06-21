@@ -205,6 +205,30 @@ src/audio_playback.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\receiver.dir\build.make CMakeFiles/receiver.dir/src/audio_playback.cpp.s
 .PHONY : src/audio_playback.cpp.s
 
+src/config.obj: src/config.cpp.obj
+.PHONY : src/config.obj
+
+# target to build an object file
+src/config.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\sender.dir\build.make CMakeFiles/sender.dir/src/config.cpp.obj
+.PHONY : src/config.cpp.obj
+
+src/config.i: src/config.cpp.i
+.PHONY : src/config.i
+
+# target to preprocess a source file
+src/config.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\sender.dir\build.make CMakeFiles/sender.dir/src/config.cpp.i
+.PHONY : src/config.cpp.i
+
+src/config.s: src/config.cpp.s
+.PHONY : src/config.s
+
+# target to generate assembly for a file
+src/config.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\sender.dir\build.make CMakeFiles/sender.dir/src/config.cpp.s
+.PHONY : src/config.cpp.s
+
 src/jitter_buffer.obj: src/jitter_buffer.cpp.obj
 .PHONY : src/jitter_buffer.obj
 
@@ -375,6 +399,9 @@ help:
 	@echo ... src/audio_playback.obj
 	@echo ... src/audio_playback.i
 	@echo ... src/audio_playback.s
+	@echo ... src/config.obj
+	@echo ... src/config.i
+	@echo ... src/config.s
 	@echo ... src/jitter_buffer.obj
 	@echo ... src/jitter_buffer.i
 	@echo ... src/jitter_buffer.s

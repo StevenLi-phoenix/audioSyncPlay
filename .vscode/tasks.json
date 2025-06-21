@@ -11,7 +11,7 @@
                 "-B",
                 "build",
                 "-G",
-                "Ninja"
+                "MinGW Makefiles"
             ],
             "group": "build",
             "presentation": {
@@ -72,6 +72,26 @@
                 "build",
                 "--target",
                 "receiver"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": "$msCompile",
+            "dependsOn": "configure"
+        },
+        {
+            "label": "build-test_audio_capture",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "test_audio_capture"
             ],
             "group": "build",
             "presentation": {

@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "D:/Documents/PythonProjects/audioSyncPlay/src/audio_capture.cpp" "CMakeFiles/sender.dir/src/audio_capture.cpp.obj" "gcc" "CMakeFiles/sender.dir/src/audio_capture.cpp.obj.d"
+  "D:/Documents/PythonProjects/audioSyncPlay/src/config.cpp" "CMakeFiles/sender.dir/src/config.cpp.obj" "gcc" "CMakeFiles/sender.dir/src/config.cpp.obj.d"
   "D:/Documents/PythonProjects/audioSyncPlay/src/logger.cpp" "CMakeFiles/sender.dir/src/logger.cpp.obj" "gcc" "CMakeFiles/sender.dir/src/logger.cpp.obj.d"
   "D:/Documents/PythonProjects/audioSyncPlay/src/network_udp.cpp" "CMakeFiles/sender.dir/src/network_udp.cpp.obj" "gcc" "CMakeFiles/sender.dir/src/network_udp.cpp.obj.d"
   "D:/Documents/PythonProjects/audioSyncPlay/src/sender.cpp" "CMakeFiles/sender.dir/src/sender.cpp.obj" "gcc" "CMakeFiles/sender.dir/src/sender.cpp.obj.d"

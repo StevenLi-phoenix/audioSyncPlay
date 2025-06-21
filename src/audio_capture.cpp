@@ -45,69 +45,109 @@ bool AudioCapture::InitAudioCapture(const std::string &deviceName)
 bool AudioCapture::InitializeWASAPI()
 {
     HRESULT hr;
-
-    // Initialize COM
+    std::cout << "[DEBUG] CoInitializeEx..." << std::endl;
     hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    std::cout << "[DEBUG] CoInitializeEx HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
     if (FAILED(hr))
     {
         LOG_ERROR_FMT("CoInitializeEx failed: 0x%08X", hr);
+        std::cout << "[ERROR] CoInitializeEx failed: 0x" << std::hex << hr << std::dec << std::endl;
         return false;
     }
 
     // Create device enumerator
+    std::cout << "[DEBUG] CoCreateInstance..." << std::endl;
     hr = CoCreateInstance(
         __uuidof(MMDeviceEnumerator),
         nullptr,
         CLSCTX_ALL,
         __uuidof(IMMDeviceEnumerator),
         (void **)&m_deviceEnumerator);
+    std::cout << "[DEBUG] CoCreateInstance HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
     if (FAILED(hr))
     {
         LOG_ERROR_FMT("Failed to create device enumerator: 0x%08X", hr);
+        std::cout << "[ERROR] Failed to create device enumerator: 0x" << std::hex << hr << std::dec << std::endl;
         return false;
     }
 
     // Get default render device (for loopback capture)
+    std::cout << "[DEBUG] GetDefaultAudioEndpoint..." << std::endl;
     hr = m_deviceEnumerator->GetDefaultAudioEndpoint(
         eRender,
         eConsole,
         &m_device);
+    std::cout << "[DEBUG] GetDefaultAudioEndpoint HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
     if (FAILED(hr))
     {
         LOG_ERROR_FMT("Failed to get default audio endpoint: 0x%08X", hr);
+        std::cout << "[ERROR] Failed to get default audio endpoint: 0x" << std::hex << hr << std::dec << std::endl;
         return false;
     }
 
     // Create audio client
+    std::cout << "[DEBUG] Activate IAudioClient..." << std::endl;
     hr = m_device->Activate(
         __uuidof(IAudioClient),
         CLSCTX_ALL,
         nullptr,
         (void **)&m_audioClient);
+    std::cout << "[DEBUG] Activate IAudioClient HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
     if (FAILED(hr))
     {
         LOG_ERROR_FMT("Failed to activate audio client: 0x%08X", hr);
+        std::cout << "[ERROR] Failed to activate audio client: 0x" << std::hex << hr << std::dec << std::endl;
         return false;
     }
 
     // Get mix format
+    std::cout << "[DEBUG] GetMixFormat..." << std::endl;
     hr = m_audioClient->GetMixFormat(&m_waveFormat);
+    std::cout << "[DEBUG] GetMixFormat HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
     if (FAILED(hr))
     {
         LOG_ERROR_FMT("Failed to get mix format: 0x%08X", hr);
+        std::cout << "[ERROR] Failed to get mix format: 0x" << std::hex << hr << std::dec << std::endl;
         return false;
     }
 
-    // Set our desired format
-    m_waveFormat->wFormatTag = WAVE_FORMAT_PCM;
-    m_waveFormat->nChannels = m_stats.channels;
-    m_waveFormat->nSamplesPerSec = m_stats.sample_rate;
-    m_waveFormat->wBitsPerSample = m_stats.bits_per_sample;
-    m_waveFormat->nBlockAlign = (m_waveFormat->nChannels * m_waveFormat->wBitsPerSample) / 8;
-    m_waveFormat->nAvgBytesPerSec = m_waveFormat->nSamplesPerSec * m_waveFormat->nBlockAlign;
-    m_waveFormat->cbSize = 0;
+    // Log the native format
+    std::cout << "[DEBUG] Native format - Sample Rate: " << m_waveFormat->nSamplesPerSec
+              << ", Channels: " << m_waveFormat->nChannels
+              << ", Bits: " << m_waveFormat->wBitsPerSample << std::endl;
 
-    // Initialize audio client
+    // Try to use the native format first, only modify if necessary
+    bool formatModified = false;
+
+    // Check if we need to modify the format
+    if (m_waveFormat->wFormatTag != WAVE_FORMAT_PCM ||
+        m_waveFormat->nChannels != m_stats.channels ||
+        m_waveFormat->nSamplesPerSec != m_stats.sample_rate ||
+        m_waveFormat->wBitsPerSample != m_stats.bits_per_sample)
+    {
+
+        formatModified = true;
+        std::cout << "[DEBUG] Modifying format to match requirements..." << std::endl;
+
+        // Set our desired format
+        m_waveFormat->wFormatTag = WAVE_FORMAT_PCM;
+        m_waveFormat->nChannels = m_stats.channels;
+        m_waveFormat->nSamplesPerSec = m_stats.sample_rate;
+        m_waveFormat->wBitsPerSample = m_stats.bits_per_sample;
+        m_waveFormat->nBlockAlign = (m_waveFormat->nChannels * m_waveFormat->wBitsPerSample) / 8;
+        m_waveFormat->nAvgBytesPerSec = m_waveFormat->nSamplesPerSec * m_waveFormat->nBlockAlign;
+        m_waveFormat->cbSize = 0;
+    }
+    else
+    {
+        // Update our stats to match the native format
+        m_stats.sample_rate = m_waveFormat->nSamplesPerSec;
+        m_stats.channels = m_waveFormat->nChannels;
+        m_stats.bits_per_sample = m_waveFormat->wBitsPerSample;
+        m_stats.frame_size = 1024; // Keep our frame size
+    }
+
+    std::cout << "[DEBUG] Initialize audio client..." << std::endl;
     hr = m_audioClient->Initialize(
         AUDCLNT_SHAREMODE_SHARED,
         AUDCLNT_STREAMFLAGS_LOOPBACK,
@@ -115,24 +155,62 @@ bool AudioCapture::InitializeWASAPI()
         0,
         m_waveFormat,
         nullptr);
+    std::cout << "[DEBUG] Initialize audio client HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
+
+    // If format modification failed, try with native format
+    if (FAILED(hr) && formatModified)
+    {
+        std::cout << "[DEBUG] Format modification failed, trying native format..." << std::endl;
+
+        // Get the mix format again
+        CoTaskMemFree(m_waveFormat);
+        hr = m_audioClient->GetMixFormat(&m_waveFormat);
+        if (SUCCEEDED(hr))
+        {
+            // Update our stats to match the native format
+            m_stats.sample_rate = m_waveFormat->nSamplesPerSec;
+            m_stats.channels = m_waveFormat->nChannels;
+            m_stats.bits_per_sample = m_waveFormat->wBitsPerSample;
+
+            std::cout << "[DEBUG] Using native format - Sample Rate: " << m_stats.sample_rate
+                      << ", Channels: " << m_stats.channels
+                      << ", Bits: " << m_stats.bits_per_sample << std::endl;
+
+            // Try initialization with native format
+            hr = m_audioClient->Initialize(
+                AUDCLNT_SHAREMODE_SHARED,
+                AUDCLNT_STREAMFLAGS_LOOPBACK,
+                10000000, // 1 second buffer
+                0,
+                m_waveFormat,
+                nullptr);
+            std::cout << "[DEBUG] Initialize with native format HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
+        }
+    }
+
     if (FAILED(hr))
     {
         LOG_ERROR_FMT("Failed to initialize audio client: 0x%08X", hr);
+        std::cout << "[ERROR] Failed to initialize audio client: 0x" << std::hex << hr << std::dec << std::endl;
         return false;
     }
 
     // Get capture client
+    std::cout << "[DEBUG] GetService IAudioCaptureClient..." << std::endl;
     hr = m_audioClient->GetService(
         __uuidof(IAudioCaptureClient),
         (void **)&m_captureClient);
+    std::cout << "[DEBUG] GetService IAudioCaptureClient HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
     if (FAILED(hr))
     {
         LOG_ERROR_FMT("Failed to get capture client: 0x%08X", hr);
+        std::cout << "[ERROR] Failed to get capture client: 0x" << std::hex << hr << std::dec << std::endl;
         return false;
     }
 
     LOG_INFO_FMT("WASAPI initialized - Sample Rate: %d, Channels: %d, Bits: %d",
                  m_stats.sample_rate, m_stats.channels, m_stats.bits_per_sample);
+    std::cout << "[DEBUG] WASAPI initialized - Sample Rate: " << m_stats.sample_rate << ", Channels: " << m_stats.channels << ", Bits: " << m_stats.bits_per_sample << std::endl;
     return true;
 }
 
@@ -317,6 +395,7 @@ std::vector<std::string> AudioCapture::GetAvailableDevices() const
 
     if (!m_deviceEnumerator)
     {
+        std::cout << "[DEBUG] Device enumerator not initialized." << std::endl;
         return devices;
     }
 
@@ -325,30 +404,30 @@ std::vector<std::string> AudioCapture::GetAvailableDevices() const
         eRender,
         DEVICE_STATE_ACTIVE,
         &deviceCollection);
-
+    std::cout << "[DEBUG] EnumAudioEndpoints HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
     if (SUCCEEDED(hr))
     {
         UINT deviceCount = 0;
         hr = deviceCollection->GetCount(&deviceCount);
-
+        std::cout << "[DEBUG] Device count: " << deviceCount << ", HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
         if (SUCCEEDED(hr))
         {
             for (UINT i = 0; i < deviceCount; i++)
             {
                 IMMDevice *device = nullptr;
                 hr = deviceCollection->Item(i, &device);
-
+                std::cout << "[DEBUG] Device " << i << " Item HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
                 if (SUCCEEDED(hr))
                 {
                     IPropertyStore *props = nullptr;
                     hr = device->OpenPropertyStore(STGM_READ, &props);
-
+                    std::cout << "[DEBUG] OpenPropertyStore HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
                     if (SUCCEEDED(hr))
                     {
                         PROPVARIANT var;
                         PropVariantInit(&var);
                         hr = props->GetValue(PKEY_Device_FriendlyName, &var);
-
+                        std::cout << "[DEBUG] GetValue HRESULT: 0x" << std::hex << hr << std::dec << std::endl;
                         if (SUCCEEDED(hr) && var.vt == VT_LPWSTR)
                         {
                             // Convert wide string to narrow string
@@ -356,17 +435,15 @@ std::vector<std::string> AudioCapture::GetAvailableDevices() const
                             std::string deviceName(size_needed, 0);
                             WideCharToMultiByte(CP_UTF8, 0, var.pwszVal, -1, &deviceName[0], size_needed, nullptr, nullptr);
                             devices.push_back(deviceName);
+                            std::cout << "[DEBUG] Device name: " << deviceName << std::endl;
                         }
-
                         PropVariantClear(&var);
                         props->Release();
                     }
-
                     device->Release();
                 }
             }
         }
-
         deviceCollection->Release();
     }
 
