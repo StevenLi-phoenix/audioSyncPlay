@@ -6,10 +6,20 @@
 bool NetworkUDP::s_winsockInitialized = false;
 
 NetworkUDP::NetworkUDP()
-    : m_senderSocket(INVALID_SOCKET), m_receiverSocket(INVALID_SOCKET), m_senderInitialized(false), m_receiverInitialized(false), m_bufferSize(65536), m_timeoutMs(1000)
+    : m_senderSocket(INVALID_SOCKET), m_receiverSocket(INVALID_SOCKET), m_senderInitialized(false), m_receiverInitialized(false), m_bufferSize(32768), m_timeoutMs(100)
 {
     memset(&m_destAddr, 0, sizeof(m_destAddr));
     memset(&m_stats, 0, sizeof(m_stats));
+
+    // Initialize Winsock
+    WSADATA wsaData;
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (result != 0)
+    {
+        LOG_ERROR_FMT("WSAStartup failed: {}", result);
+        return;
+    }
+    LOG_INFO("Winsock initialized successfully");
 }
 
 NetworkUDP::~NetworkUDP()

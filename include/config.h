@@ -6,14 +6,18 @@
 // Audio configuration
 struct AudioConfig
 {
-    int sample_rate = 44100;
+    int sample_rate = 48000;
     int channels = 2;
-    int bits_per_sample = 16;
+    int bits_per_sample = 32;
     int frame_size = 1024;
     int target_latency_ms = 100;
     int max_latency_ms = 200;
     std::string network_interface = "auto";
     std::string default_audio_device = "";
+    std::string device_name = "default";
+    float volume = 1.0f;
+    bool use_native_format = true;
+    bool enable_format_conversion = true;
 };
 
 // Network configuration

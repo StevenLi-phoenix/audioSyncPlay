@@ -9,22 +9,26 @@ AppConfig g_config;
 // Set default configuration values
 void SetDefaultConfig()
 {
-    // Audio configuration defaults
-    g_config.audio.sample_rate = 44100;
+    // Audio configuration - use high quality format
+    g_config.audio.sample_rate = 48000; // 48kHz for better quality
     g_config.audio.channels = 2;
-    g_config.audio.bits_per_sample = 16;
+    g_config.audio.bits_per_sample = 32; // 32-bit for better quality
     g_config.audio.frame_size = 1024;
-    g_config.audio.target_latency_ms = 100;
-    g_config.audio.max_latency_ms = 200;
+    g_config.audio.target_latency_ms = 5; // Reduce target latency
+    g_config.audio.max_latency_ms = 10;   // Reduce max latency
     g_config.audio.network_interface = "auto";
     g_config.audio.default_audio_device = "";
+    g_config.audio.device_name = "default";
+    g_config.audio.volume = 1.0f;
+    g_config.audio.use_native_format = true;
+    g_config.audio.enable_format_conversion = true;
 
     // Network configuration defaults
     g_config.network.sender_ip = "127.0.0.1";
     g_config.network.sender_port = 8888;
     g_config.network.receiver_port = 8889;
-    g_config.network.buffer_size = 65536;
-    g_config.network.timeout_ms = 1000;
+    g_config.network.buffer_size = 32768; // Reduced for low latency
+    g_config.network.timeout_ms = 100;    // Reduced for low latency
     g_config.network.enable_multicast = false;
     g_config.network.multicast_group = "239.255.255.250";
 
@@ -32,9 +36,9 @@ void SetDefaultConfig()
     g_config.log_level = "INFO";
     g_config.log_file = "audiosync.log";
     g_config.enable_console_log = true;
-    g_config.thread_priority = 0; // normal
+    g_config.thread_priority = 0; // 0=normal, 1=above_normal, 2=high
     g_config.enable_statistics = true;
-    g_config.stats_interval_ms = 1000;
+    g_config.stats_interval_ms = 500; // More frequent stats for low latency monitoring
 }
 
 // Load configuration from file

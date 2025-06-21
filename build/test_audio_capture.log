@@ -1,6 +1,0 @@
-2025-06-21 16:37:54.657 [INFO ] === Audio Capture Test ===
-2025-06-21 16:37:54.658 [INFO ] Available audio devices:
-2025-06-21 16:37:54.658 [INFO ] Initializing audio capture...
-2025-06-21 16:37:54.688 [ERROR] Failed to initialize audio client: 0x%08X
-2025-06-21 16:37:54.689 [ERROR] Failed to initialize WASAPI
-2025-06-21 16:37:54.689 [ERROR] Failed to initialize audio capture

@@ -1,6 +1,8 @@
 file(REMOVE_RECURSE
   "CMakeFiles/test_audio_capture.dir/src/audio_capture.cpp.obj"
   "CMakeFiles/test_audio_capture.dir/src/audio_capture.cpp.obj.d"
+  "CMakeFiles/test_audio_capture.dir/src/config.cpp.obj"
+  "CMakeFiles/test_audio_capture.dir/src/config.cpp.obj.d"
   "CMakeFiles/test_audio_capture.dir/src/logger.cpp.obj"
   "CMakeFiles/test_audio_capture.dir/src/logger.cpp.obj.d"
   "CMakeFiles/test_audio_capture.dir/src/test_audio_capture.cpp.obj"

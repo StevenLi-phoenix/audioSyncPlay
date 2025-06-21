@@ -76,9 +76,18 @@ void AudioFrameCallback(const std::vector<uint8_t> &frame, NetworkUDP *network)
     // Generate sequence number for this frame
     uint32_t sequenceNumber = g_sequenceCounter++;
 
-    // Create packet with sequence number and timestamp
+    // Get current audio format
+    int sampleRate, channels, bitsPerSample;
+    // Note: We need to get this from the audio capture instance
+    // For now, use config values
+    sampleRate = g_config.audio.sample_rate;
+    channels = g_config.audio.channels;
+    bitsPerSample = g_config.audio.bits_per_sample;
+
+    // Create packet with format info, sequence number, timestamp, and audio data
     std::vector<uint8_t> packet;
-    packet.resize(sizeof(uint32_t) + sizeof(uint64_t) + frame.size());
+    size_t headerSize = sizeof(uint32_t) + sizeof(uint64_t) + sizeof(int) * 3; // seq + timestamp + format
+    packet.resize(headerSize + frame.size());
 
     // Add sequence number (4 bytes)
     memcpy(packet.data(), &sequenceNumber, sizeof(uint32_t));
@@ -86,8 +95,13 @@ void AudioFrameCallback(const std::vector<uint8_t> &frame, NetworkUDP *network)
     // Add timestamp (8 bytes)
     memcpy(packet.data() + sizeof(uint32_t), &timestamp, sizeof(uint64_t));
 
+    // Add audio format info (12 bytes: sampleRate, channels, bitsPerSample)
+    memcpy(packet.data() + sizeof(uint32_t) + sizeof(uint64_t), &sampleRate, sizeof(int));
+    memcpy(packet.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(int), &channels, sizeof(int));
+    memcpy(packet.data() + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(int) * 2, &bitsPerSample, sizeof(int));
+
     // Add audio frame data
-    memcpy(packet.data() + sizeof(uint32_t) + sizeof(uint64_t), frame.data(), frame.size());
+    memcpy(packet.data() + headerSize, frame.data(), frame.size());
 
     // Send packet over network
     if (network->SendFrame(packet.data(), packet.size(), timestamp))

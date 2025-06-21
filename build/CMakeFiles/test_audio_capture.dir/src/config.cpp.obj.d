@@ -1,6 +1,6 @@
-CMakeFiles/sender.dir/src/main.cpp.obj: \
- D:\Documents\PythonProjects\audioSyncPlay\src\main.cpp \
- D:/Documents/PythonProjects/audioSyncPlay/include/logger.h \
+CMakeFiles/test_audio_capture.dir/src/config.cpp.obj: \
+ D:\Documents\PythonProjects\audioSyncPlay\src\config.cpp \
+ D:/Documents/PythonProjects/audioSyncPlay/include/config.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/string \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/c++config.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/os_defines.h \
@@ -98,6 +98,7 @@ CMakeFiles/sender.dir/src/main.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/functional_hash.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/hash_bytes.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/basic_string.tcc \
+ D:/Documents/PythonProjects/audioSyncPlay/include/logger.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/fstream \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/istream \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/ios \
@@ -156,4 +157,17 @@ CMakeFiles/sender.dir/src/main.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/atomic_base.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/backward/auto_ptr.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/sstream \
- C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/sstream.tcc
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/sstream.tcc \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iomanip \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/locale \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/locale_facets_nonio.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/time_members.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/messages_members.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/locale_facets_nonio.tcc \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/locale_conv.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stringfwd.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/allocator.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/codecvt.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/unique_ptr.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/quoted_string.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iostream

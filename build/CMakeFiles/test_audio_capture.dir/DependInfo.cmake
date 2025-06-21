@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "D:/Documents/PythonProjects/audioSyncPlay/src/audio_capture.cpp" "CMakeFiles/test_audio_capture.dir/src/audio_capture.cpp.obj" "gcc" "CMakeFiles/test_audio_capture.dir/src/audio_capture.cpp.obj.d"
+  "D:/Documents/PythonProjects/audioSyncPlay/src/config.cpp" "CMakeFiles/test_audio_capture.dir/src/config.cpp.obj" "gcc" "CMakeFiles/test_audio_capture.dir/src/config.cpp.obj.d"
   "D:/Documents/PythonProjects/audioSyncPlay/src/logger.cpp" "CMakeFiles/test_audio_capture.dir/src/logger.cpp.obj" "gcc" "CMakeFiles/test_audio_capture.dir/src/logger.cpp.obj.d"
   "D:/Documents/PythonProjects/audioSyncPlay/src/test_audio_capture.cpp" "CMakeFiles/test_audio_capture.dir/src/test_audio_capture.cpp.obj" "gcc" "CMakeFiles/test_audio_capture.dir/src/test_audio_capture.cpp.obj.d"
   )

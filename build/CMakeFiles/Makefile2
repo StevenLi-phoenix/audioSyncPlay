@@ -90,12 +90,12 @@ clean: CMakeFiles/receiver.dir/clean
 CMakeFiles/test_audio_capture.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_audio_capture.dir\build.make CMakeFiles/test_audio_capture.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_audio_capture.dir\build.make CMakeFiles/test_audio_capture.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles --progress-num=14,15,16,17 "Built target test_audio_capture"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles --progress-num=14,15,16,17,18 "Built target test_audio_capture"
 .PHONY : CMakeFiles/test_audio_capture.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_audio_capture.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles 4
+	$(CMAKE_COMMAND) -E cmake_progress_start D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles 5
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Makefile2 CMakeFiles/test_audio_capture.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start D:\Documents\PythonProjects\audioSyncPlay\build\CMakeFiles 0
 .PHONY : CMakeFiles/test_audio_capture.dir/rule

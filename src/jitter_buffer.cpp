@@ -94,14 +94,14 @@ bool JitterBuffer::GetFrame(std::vector<uint8_t> &frame_out)
 
 void JitterBuffer::SetTargetLatencyMs(int latency)
 {
-    m_targetLatencyMs = std::max(10, std::min(500, latency));
-    LOG_INFO_FMT("Target latency set to: {} ms", m_targetLatencyMs);
+    m_targetLatencyMs = std::max(1, std::min(50, latency)); // Clamp between 1-50ms for ultra-low latency
+    LOG_INFO_FMT("Jitter buffer target latency set to: {} ms", m_targetLatencyMs);
 }
 
 void JitterBuffer::SetMaxLatencyMs(int max_latency)
 {
-    m_maxLatencyMs = std::max(m_targetLatencyMs + 50, max_latency);
-    LOG_INFO_FMT("Max latency set to: {} ms", m_maxLatencyMs);
+    m_maxLatencyMs = std::max(5, std::min(100, max_latency)); // Clamp between 5-100ms for ultra-low latency
+    LOG_INFO_FMT("Jitter buffer max latency set to: {} ms", m_maxLatencyMs);
 }
 
 void JitterBuffer::SetFrameSize(size_t frame_size)
@@ -178,32 +178,28 @@ void JitterBuffer::UpdateStats() const
 
 void JitterBuffer::AdaptiveBufferAdjustment()
 {
+    if (m_frameBuffer.empty())
+        return;
+
+    // Calculate current jitter
     float currentJitter = CalculateJitter();
 
-    // Adjust target latency based on jitter
-    if (currentJitter > m_targetLatencyMs * 0.5f)
+    // More aggressive adjustment for ultra-low latency
+    if (currentJitter > m_targetLatencyMs * 0.5f) // If jitter > 50% of target
     {
-        // High jitter detected, increase buffer
-        int newTarget = std::min(m_maxLatencyMs,
-                                 m_targetLatencyMs + static_cast<int>(currentJitter * 0.5f));
-        if (newTarget != m_targetLatencyMs)
-        {
-            m_targetLatencyMs = newTarget;
-            LOG_INFO_FMT("Adaptive adjustment: increased target latency to {} ms (jitter: {:.2f} ms)",
-                         m_targetLatencyMs, currentJitter);
-        }
+        // Increase target latency slightly
+        m_targetLatencyMs = std::min(m_maxLatencyMs,
+                                     static_cast<int>(m_targetLatencyMs * 1.1f));
+        LOG_DEBUG_FMT("Jitter high ({}ms), increasing target to {}ms",
+                      currentJitter, m_targetLatencyMs);
     }
-    else if (currentJitter < m_targetLatencyMs * 0.2f && m_targetLatencyMs > 50)
+    else if (currentJitter < m_targetLatencyMs * 0.2f) // If jitter < 20% of target
     {
-        // Low jitter, can reduce buffer
-        int newTarget = std::max(50,
-                                 m_targetLatencyMs - static_cast<int>(currentJitter * 0.3f));
-        if (newTarget != m_targetLatencyMs)
-        {
-            m_targetLatencyMs = newTarget;
-            LOG_INFO_FMT("Adaptive adjustment: decreased target latency to {} ms (jitter: {:.2f} ms)",
-                         m_targetLatencyMs, currentJitter);
-        }
+        // Decrease target latency for lower latency
+        m_targetLatencyMs = std::max(1,
+                                     static_cast<int>(m_targetLatencyMs * 0.95f));
+        LOG_DEBUG_FMT("Jitter low ({}ms), decreasing target to {}ms",
+                      currentJitter, m_targetLatencyMs);
     }
 }
 

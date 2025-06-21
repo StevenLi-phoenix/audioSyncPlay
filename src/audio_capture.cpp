@@ -1,9 +1,12 @@
 #define INITGUID
 #include "audio_capture.h"
 #include "logger.h"
+#include "config.h"
 #include <iostream>
 #include <algorithm>
 #include <functiondiscoverykeys_devpkey.h>
+
+extern AppConfig g_config;
 
 AudioCapture::AudioCapture()
     : m_deviceEnumerator(nullptr), m_device(nullptr), m_audioClient(nullptr), m_captureClient(nullptr), m_waveFormat(nullptr), m_isCapturing(false), m_isInitialized(false), m_captureThread(nullptr), m_threadShouldExit(false)
@@ -125,18 +128,34 @@ bool AudioCapture::InitializeWASAPI()
         m_waveFormat->nSamplesPerSec != m_stats.sample_rate ||
         m_waveFormat->wBitsPerSample != m_stats.bits_per_sample)
     {
+        // If use_native_format is enabled, prefer native format
+        if (g_config.audio.use_native_format)
+        {
+            std::cout << "[DEBUG] Using native format for better quality..." << std::endl;
 
-        formatModified = true;
-        std::cout << "[DEBUG] Modifying format to match requirements..." << std::endl;
+            // Update our stats to match the native format
+            m_stats.sample_rate = m_waveFormat->nSamplesPerSec;
+            m_stats.channels = m_waveFormat->nChannels;
+            m_stats.bits_per_sample = m_waveFormat->wBitsPerSample;
 
-        // Set our desired format
-        m_waveFormat->wFormatTag = WAVE_FORMAT_PCM;
-        m_waveFormat->nChannels = m_stats.channels;
-        m_waveFormat->nSamplesPerSec = m_stats.sample_rate;
-        m_waveFormat->wBitsPerSample = m_stats.bits_per_sample;
-        m_waveFormat->nBlockAlign = (m_waveFormat->nChannels * m_waveFormat->wBitsPerSample) / 8;
-        m_waveFormat->nAvgBytesPerSec = m_waveFormat->nSamplesPerSec * m_waveFormat->nBlockAlign;
-        m_waveFormat->cbSize = 0;
+            std::cout << "[DEBUG] Native format - Sample Rate: " << m_stats.sample_rate
+                      << ", Channels: " << m_stats.channels
+                      << ", Bits: " << m_stats.bits_per_sample << std::endl;
+        }
+        else
+        {
+            formatModified = true;
+            std::cout << "[DEBUG] Modifying format to match requirements..." << std::endl;
+
+            // Set our desired format
+            m_waveFormat->wFormatTag = WAVE_FORMAT_PCM;
+            m_waveFormat->nChannels = m_stats.channels;
+            m_waveFormat->nSamplesPerSec = m_stats.sample_rate;
+            m_waveFormat->wBitsPerSample = m_stats.bits_per_sample;
+            m_waveFormat->nBlockAlign = (m_waveFormat->nChannels * m_waveFormat->wBitsPerSample) / 8;
+            m_waveFormat->nAvgBytesPerSec = m_waveFormat->nSamplesPerSec * m_waveFormat->nBlockAlign;
+            m_waveFormat->cbSize = 0;
+        }
     }
     else
     {
@@ -151,7 +170,7 @@ bool AudioCapture::InitializeWASAPI()
     hr = m_audioClient->Initialize(
         AUDCLNT_SHAREMODE_SHARED,
         AUDCLNT_STREAMFLAGS_LOOPBACK,
-        10000000, // 1 second buffer
+        500000, // 50ms buffer (reduced from 1 second for low latency)
         0,
         m_waveFormat,
         nullptr);
@@ -180,7 +199,7 @@ bool AudioCapture::InitializeWASAPI()
             hr = m_audioClient->Initialize(
                 AUDCLNT_SHAREMODE_SHARED,
                 AUDCLNT_STREAMFLAGS_LOOPBACK,
-                10000000, // 1 second buffer
+                500000, // 50ms buffer (reduced from 1 second for low latency)
                 0,
                 m_waveFormat,
                 nullptr);
@@ -489,4 +508,67 @@ void AudioCapture::CleanupWASAPI()
 
     CoUninitialize();
     m_isInitialized = false;
+}
+
+bool AudioCapture::ConvertAudioFormat(const std::vector<uint8_t> &input, std::vector<uint8_t> &output,
+                                      int fromSampleRate, int fromChannels, int fromBitsPerSample,
+                                      int toSampleRate, int toChannels, int toBitsPerSample)
+{
+    // Simple format conversion - for now just handle bit depth changes
+    // TODO: Add sample rate conversion and channel mixing/expansion
+
+    if (fromSampleRate != toSampleRate || fromChannels != toChannels)
+    {
+        LOG_WARNING_FMT("Sample rate or channel conversion not yet implemented: {}Hz/{}ch -> {}Hz/{}ch",
+                        fromSampleRate, fromChannels, toSampleRate, toChannels);
+        return false;
+    }
+
+    size_t inputSamples = input.size() / (fromChannels * (fromBitsPerSample / 8));
+    size_t outputSize = inputSamples * toChannels * (toBitsPerSample / 8);
+    output.resize(outputSize);
+
+    if (fromBitsPerSample == 16 && toBitsPerSample == 32)
+    {
+        // Convert 16-bit to 32-bit float
+        const int16_t *src = reinterpret_cast<const int16_t *>(input.data());
+        float *dst = reinterpret_cast<float *>(output.data());
+
+        for (size_t i = 0; i < inputSamples * fromChannels; ++i)
+        {
+            dst[i] = src[i] / 32768.0f; // Normalize to [-1.0, 1.0]
+        }
+    }
+    else if (fromBitsPerSample == 32 && toBitsPerSample == 16)
+    {
+        // Convert 32-bit float to 16-bit
+        const float *src = reinterpret_cast<const float *>(input.data());
+        int16_t *dst = reinterpret_cast<int16_t *>(output.data());
+
+        for (size_t i = 0; i < inputSamples * fromChannels; ++i)
+        {
+            float sample = src[i] * 32767.0f;                         // Scale to 16-bit range
+            sample = std::max(-32768.0f, std::min(32767.0f, sample)); // Clamp
+            dst[i] = static_cast<int16_t>(sample);
+        }
+    }
+    else if (fromBitsPerSample == toBitsPerSample)
+    {
+        // Same bit depth, just copy
+        memcpy(output.data(), input.data(), input.size());
+    }
+    else
+    {
+        LOG_ERROR_FMT("Unsupported bit depth conversion: {} -> {}", fromBitsPerSample, toBitsPerSample);
+        return false;
+    }
+
+    return true;
+}
+
+void AudioCapture::GetCurrentFormat(int &sampleRate, int &channels, int &bitsPerSample) const
+{
+    sampleRate = m_stats.sample_rate;
+    channels = m_stats.channels;
+    bitsPerSample = m_stats.bits_per_sample;
 }

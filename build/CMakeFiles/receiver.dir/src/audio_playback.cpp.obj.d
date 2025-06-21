@@ -345,4 +345,18 @@ CMakeFiles/receiver.dir/src/audio_playback.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/allocator.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/codecvt.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/unique_ptr.h \
- C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/quoted_string.h
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/quoted_string.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/x86_64-w64-mingw32/include/functiondiscoverykeys_devpkey.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/algorithm \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_algo.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/algorithmfwd.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_heap.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/random \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/cmath \
+ C:/lishuyu/miniconda/Library/mingw-w64/x86_64-w64-mingw32/include/math.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/random.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/x86_64-w64-mingw32/bits/opt_random.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/random.tcc \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/numeric \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_numeric.h \
+ C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/thread

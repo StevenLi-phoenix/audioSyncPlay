@@ -11,6 +11,12 @@ if(WIN32)
     add_definitions(-DWIN32_LEAN_AND_MEAN)
     set(WINSOCK ws2_32.lib)
     set(WASAPI ole32.lib)
+
+    # Complete static linking for MinGW/GCC (eliminates all DLL dependencies)
+    if(MINGW OR CMAKE_COMPILER_IS_GNUCXX)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++ -static")
+        message(STATUS "Complete static linking enabled - no DLL dependencies")
+    endif()
 endif()
 
 # Include directories
@@ -24,6 +30,7 @@ add_executable(test_audio_capture
     src/test_audio_capture.cpp
     src/audio_capture.cpp
     src/logger.cpp
+    src/config.cpp
 )
 target_link_libraries(test_audio_capture ${WASAPI})
 

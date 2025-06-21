@@ -1,5 +1,6 @@
 #include "audio_capture.h"
 #include "logger.h"
+#include "config.h"
 #include <iostream>
 #include <chrono>
 #include <thread>

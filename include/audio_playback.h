@@ -36,6 +36,7 @@ public:
         uint32_t buffer_underruns;
     };
     PlaybackStats GetStats() const;
+    void ResetStats();
 
     // Configuration
     void SetSampleRate(uint32_t sample_rate);
@@ -70,7 +71,7 @@ private:
     bool InitializeWASAPI();
     void CleanupWASAPI();
     bool FillBuffer();
-    void UpdateStats();
+    void UpdateStats() const;
 
     // Thread management
     HANDLE m_playbackThread;

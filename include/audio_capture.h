@@ -37,6 +37,14 @@ public:
     };
     CaptureStats GetStats() const;
 
+    // Audio format conversion
+    bool ConvertAudioFormat(const std::vector<uint8_t> &input, std::vector<uint8_t> &output,
+                            int fromSampleRate, int fromChannels, int fromBitsPerSample,
+                            int toSampleRate, int toChannels, int toBitsPerSample);
+
+    // Get current audio format
+    void GetCurrentFormat(int &sampleRate, int &channels, int &bitsPerSample) const;
+
 private:
     // WASAPI members
     IMMDeviceEnumerator *m_deviceEnumerator;

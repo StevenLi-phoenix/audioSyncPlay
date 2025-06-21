@@ -345,6 +345,7 @@ CMakeFiles/test_audio_capture.dir/src/audio_capture.cpp.obj: \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/codecvt.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/unique_ptr.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/quoted_string.h \
+ D:/Documents/PythonProjects/audioSyncPlay/include/config.h \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/iostream \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/algorithm \
  C:/lishuyu/miniconda/Library/mingw-w64/include/c++/5.3.0/bits/stl_algo.h \
