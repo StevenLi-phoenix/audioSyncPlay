@@ -86,4 +86,6 @@ private:
     void ReorderFrames();
     float CalculateJitter() const;
     int CalculateCurrentLatency() const;
+    void AgeOutOldFrames();
+    void OptimizeMemoryUsage();
 };

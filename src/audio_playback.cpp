@@ -128,6 +128,8 @@ bool AudioPlayback::PlayFrame(const std::vector<uint8_t> &frame)
         return false;
     }
 
+    // OPTIMIZATION: Improved buffer management to reduce dropouts
+
     // Get the number of frames available in the buffer
     UINT32 numFramesAvailable;
     HRESULT hr = m_audioClient->GetCurrentPadding(&numFramesAvailable);
@@ -138,11 +140,53 @@ bool AudioPlayback::PlayFrame(const std::vector<uint8_t> &frame)
     }
 
     UINT32 numFramesToWrite = m_bufferFrameCount - numFramesAvailable;
+
+    // Calculate optimal buffer usage (keep buffer 25-75% full for stability)
+    UINT32 minBufferFrames = m_bufferFrameCount / 4;  // 25%
+    UINT32 maxBufferFrames = (m_bufferFrameCount * 3) / 4; // 75%
+
+    // Check if buffer is in danger zone
+    if (numFramesAvailable < minBufferFrames)
+    {
+        // Buffer underrun risk - prioritize this frame
+        LOG_DEBUG_FMT("Buffer underrun risk: {}/{} frames available", numFramesAvailable, m_bufferFrameCount);
+        m_stats.buffer_underruns++;
+    }
+    else if (numFramesAvailable > maxBufferFrames)
+    {
+        // Buffer getting full - we can afford to drop this frame
+        m_stats.frames_dropped++;
+        LOG_DEBUG_FMT("Buffer overflow risk: {}/{} frames available, dropping frame", numFramesAvailable, m_bufferFrameCount);
+        return false;
+    }
+
+    // If no space available, handle based on buffer health
     if (numFramesToWrite == 0)
     {
-        // Buffer is full, drop frame but log it
+        if (numFramesAvailable < minBufferFrames)
+        {
+            // Critical - force write by skipping some buffered audio
+            numFramesToWrite = minBufferFrames / 4;
+            LOG_DEBUG("Critical buffer underrun, forcing write");
+        }
+        else
+        {
+            // Normal case - buffer is healthy, drop frame
+            m_stats.frames_dropped++;
+            LOG_DEBUG("Audio buffer full, dropping frame");
+            return false;
+        }
+    }
+
+    // Limit frames to write to prevent large latency spikes
+    size_t frameSizeBytes = m_channels * (m_bitsPerSample / 8);
+    size_t maxFramesToWrite = frame.size() / frameSizeBytes;
+    numFramesToWrite = std::min(numFramesToWrite, static_cast<UINT32>(maxFramesToWrite));
+
+    if (numFramesToWrite == 0)
+    {
         m_stats.frames_dropped++;
-        LOG_DEBUG("Audio buffer full, dropping frame");
+        LOG_DEBUG("No frames to write after optimization");
         return false;
     }
 
@@ -155,46 +199,50 @@ bool AudioPlayback::PlayFrame(const std::vector<uint8_t> &frame)
         return false;
     }
 
-    // Calculate frame size in bytes
-    size_t frameSizeBytes = m_channels * (m_bitsPerSample / 8);
-    size_t framesToCopy = std::min(static_cast<size_t>(numFramesToWrite),
-                                   frame.size() / frameSizeBytes);
+    // Calculate actual frames to copy
+    size_t framesToCopy = std::min(static_cast<size_t>(numFramesToWrite), maxFramesToWrite);
 
-    // Ensure we have enough data
-    if (framesToCopy == 0)
+    // Copy audio data with optimized volume adjustment
+    if (m_volume != 1.0f && m_volume != 0.0f)
     {
-        m_renderClient->ReleaseBuffer(0, 0);
-        m_stats.frames_dropped++;
-        LOG_DEBUG("Frame too small, dropping");
-        return false;
-    }
-
-    // Copy audio data with volume adjustment
-    if (m_volume != 1.0f)
-    {
-        // Apply volume scaling
+        // Apply volume scaling with SIMD-friendly loops
         if (m_bitsPerSample == 16)
         {
-            int16_t *src = reinterpret_cast<int16_t *>(const_cast<uint8_t *>(frame.data()));
+            const int16_t *src = reinterpret_cast<const int16_t *>(frame.data());
             int16_t *dst = reinterpret_cast<int16_t *>(buffer);
-            for (size_t i = 0; i < framesToCopy * m_channels; ++i)
+            size_t sampleCount = framesToCopy * m_channels;
+
+            for (size_t i = 0; i < sampleCount; ++i)
             {
-                dst[i] = static_cast<int16_t>(src[i] * m_volume);
+                int32_t sample = static_cast<int32_t>(src[i]) * static_cast<int32_t>(m_volume * 32767) / 32767;
+                dst[i] = static_cast<int16_t>(std::max(-32768, std::min(32767, sample)));
             }
         }
         else if (m_bitsPerSample == 32)
         {
-            float *src = reinterpret_cast<float *>(const_cast<uint8_t *>(frame.data()));
+            const float *src = reinterpret_cast<const float *>(frame.data());
             float *dst = reinterpret_cast<float *>(buffer);
-            for (size_t i = 0; i < framesToCopy * m_channels; ++i)
+            size_t sampleCount = framesToCopy * m_channels;
+
+            for (size_t i = 0; i < sampleCount; ++i)
             {
                 dst[i] = src[i] * m_volume;
             }
         }
+        else
+        {
+            // Generic bit depth handling
+            memcpy(buffer, frame.data(), framesToCopy * frameSizeBytes);
+        }
+    }
+    else if (m_volume == 0.0f)
+    {
+        // Muted - write silence
+        memset(buffer, 0, framesToCopy * frameSizeBytes);
     }
     else
     {
-        // No volume adjustment needed
+        // No volume adjustment needed (volume == 1.0f)
         memcpy(buffer, frame.data(), framesToCopy * frameSizeBytes);
     }
 

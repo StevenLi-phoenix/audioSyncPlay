@@ -53,6 +53,14 @@ void JitterBuffer::PushFrame(const std::vector<uint8_t> &frame, uint64_t timesta
     // Adaptive buffer adjustment
     AdaptiveBufferAdjustment();
 
+    // Periodic memory optimization (every 100 frames)
+    static uint32_t frameCounter = 0;
+    frameCounter++;
+    if (frameCounter % 100 == 0)
+    {
+        OptimizeMemoryUsage();
+    }
+
     LOG_DEBUG_FMT("Pushed frame {} into jitter buffer. Buffer size: {}",
                   sequence_number, m_frameBuffer.size());
 }
@@ -181,26 +189,73 @@ void JitterBuffer::AdaptiveBufferAdjustment()
     if (m_frameBuffer.empty())
         return;
 
-    // Calculate current jitter
+    // OPTIMIZATION: Improved adaptive buffer adjustment using EWMA
     float currentJitter = CalculateJitter();
+    int currentLatency = CalculateCurrentLatency();
 
-    // More aggressive adjustment for ultra-low latency
-    if (currentJitter > m_targetLatencyMs * 0.5f) // If jitter > 50% of target
+    // Use exponential weighted moving average for smoother adjustments
+    static float ewmaJitter = currentJitter;
+    static float ewmaLatency = static_cast<float>(currentLatency);
+    static int adjustmentCounter = 0;
+
+    const float alpha = 0.1f; // EWMA smoothing factor
+    ewmaJitter = alpha * currentJitter + (1.0f - alpha) * ewmaJitter;
+    ewmaLatency = alpha * currentLatency + (1.0f - alpha) * ewmaLatency;
+
+    // Only adjust every N frames to prevent oscillation
+    adjustmentCounter++;
+    if (adjustmentCounter < 10) return;
+    adjustmentCounter = 0;
+
+    // Calculate buffer occupancy percentage
+    int maxFrames = (m_maxLatencyMs * m_sampleRate) / (1000 * m_frameSize / (m_channels * 2));
+    float occupancyRatio = maxFrames > 0 ? static_cast<float>(m_frameBuffer.size()) / maxFrames : 0.0f;
+
+    // Adaptive thresholds based on network conditions
+    float jitterThresholdHigh = std::max(2.0f, m_targetLatencyMs * 0.3f);
+    float jitterThresholdLow = std::max(0.5f, m_targetLatencyMs * 0.1f);
+    float latencyThresholdHigh = m_targetLatencyMs * 1.5f;
+    float latencyThresholdLow = m_targetLatencyMs * 0.5f;
+
+    // Decision logic for buffer adjustment
+    bool shouldIncrease = false;
+    bool shouldDecrease = false;
+
+    if (ewmaJitter > jitterThresholdHigh || ewmaLatency > latencyThresholdHigh ||
+        occupancyRatio > 0.8f || m_stats.frames_dropped > 0)
     {
-        // Increase target latency slightly
+        shouldIncrease = true;
+    }
+    else if (ewmaJitter < jitterThresholdLow && ewmaLatency < latencyThresholdLow &&
+             occupancyRatio < 0.3f && m_stats.frames_dropped == 0)
+    {
+        shouldDecrease = true;
+    }
+
+    // Apply adjustments with hysteresis
+    if (shouldIncrease && m_targetLatencyMs < m_maxLatencyMs)
+    {
+        int oldTarget = m_targetLatencyMs;
         m_targetLatencyMs = std::min(m_maxLatencyMs,
-                                     static_cast<int>(m_targetLatencyMs * 1.1f));
-        LOG_DEBUG_FMT("Jitter high ({}ms), increasing target to {}ms",
-                      currentJitter, m_targetLatencyMs);
+                                   static_cast<int>(m_targetLatencyMs * 1.2f));
+
+        LOG_DEBUG_FMT("Buffer adjustment: jitter={:.2f}ms, latency={:.2f}ms, occupancy={:.1f}%, "
+                      "target: {}ms -> {}ms (increase)",
+                      ewmaJitter, ewmaLatency, occupancyRatio * 100, oldTarget, m_targetLatencyMs);
     }
-    else if (currentJitter < m_targetLatencyMs * 0.2f) // If jitter < 20% of target
+    else if (shouldDecrease && m_targetLatencyMs > 1)
     {
-        // Decrease target latency for lower latency
+        int oldTarget = m_targetLatencyMs;
         m_targetLatencyMs = std::max(1,
-                                     static_cast<int>(m_targetLatencyMs * 0.95f));
-        LOG_DEBUG_FMT("Jitter low ({}ms), decreasing target to {}ms",
-                      currentJitter, m_targetLatencyMs);
+                                   static_cast<int>(m_targetLatencyMs * 0.9f));
+
+        LOG_DEBUG_FMT("Buffer adjustment: jitter={:.2f}ms, latency={:.2f}ms, occupancy={:.1f}%, "
+                      "target: {}ms -> {}ms (decrease)",
+                      ewmaJitter, ewmaLatency, occupancyRatio * 100, oldTarget, m_targetLatencyMs);
     }
+
+    // Age out old frames to prevent memory bloat
+    AgeOutOldFrames();
 }
 
 bool JitterBuffer::IsFrameTooOld(const AudioFrame &frame) const
@@ -312,4 +367,62 @@ int JitterBuffer::CalculateCurrentLatency() const
     auto latency = std::chrono::duration_cast<std::chrono::milliseconds>(now - oldestFrame.receive_time);
 
     return static_cast<int>(latency.count());
+}
+
+void JitterBuffer::AgeOutOldFrames()
+{
+    auto now = std::chrono::steady_clock::now();
+    auto maxAge = std::chrono::milliseconds(m_maxLatencyMs * 2); // Age out frames older than 2x max latency
+
+    auto it = m_frameBuffer.begin();
+    size_t removedCount = 0;
+
+    while (it != m_frameBuffer.end())
+    {
+        auto age = std::chrono::duration_cast<std::chrono::milliseconds>(now - it->second.receive_time);
+
+        if (age > maxAge)
+        {
+            // Remove old frame
+            it = m_frameBuffer.erase(it);
+            removedCount++;
+            m_stats.frames_dropped++;
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if (removedCount > 0)
+    {
+        LOG_DEBUG_FMT("Aged out {} old frames from jitter buffer", removedCount);
+
+        // Rebuild output queue after removing old frames
+        ReorderFrames();
+    }
+}
+
+void JitterBuffer::OptimizeMemoryUsage()
+{
+    // Limit buffer size to prevent excessive memory usage
+    size_t maxBufferSize = (m_maxLatencyMs * m_sampleRate) / (1000 * m_frameSize / (m_channels * 2)) * 2;
+
+    if (m_frameBuffer.size() > maxBufferSize)
+    {
+        // Remove oldest frames if buffer is too large
+        auto it = m_frameBuffer.begin();
+        size_t toRemove = m_frameBuffer.size() - maxBufferSize;
+
+        for (size_t i = 0; i < toRemove && it != m_frameBuffer.end(); ++i)
+        {
+            it = m_frameBuffer.erase(it);
+            m_stats.frames_dropped++;
+        }
+
+        LOG_WARNING_FMT("Buffer size exceeded limit, removed {} frames", toRemove);
+
+        // Rebuild output queue
+        ReorderFrames();
+    }
 }
