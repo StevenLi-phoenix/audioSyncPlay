@@ -22,9 +22,32 @@ void ClockSync::SyncWithSender(uint64_t sender_timestamp, uint64_t local_receive
     sample.sender_time = sender_timestamp;
     sample.local_time = local_receive_time;
 
-    // Estimate round-trip time (simplified - assumes symmetric network)
-    // In practice, you'd measure actual RTT
-    sample.round_trip_time = 1000; // 1ms estimate for local network
+    // OPTIMIZATION: Estimate round-trip time based on timestamp differences
+    // This is a simplified approach - in production, use proper RTT measurement
+    if (m_syncHistory.size() > 0)
+    {
+        // Calculate RTT based on timestamp variance
+        auto &lastSample = m_syncHistory.back();
+        uint64_t timeDiff = (local_receive_time > lastSample.local_time) ?
+                           (local_receive_time - lastSample.local_time) : 0;
+        uint64_t senderDiff = (sender_timestamp > lastSample.sender_time) ?
+                             (sender_timestamp - lastSample.sender_time) : 0;
+
+        if (timeDiff > 0 && senderDiff > 0)
+        {
+            // Simple RTT estimation based on time differences
+            sample.round_trip_time = std::abs(static_cast<int64_t>(timeDiff - senderDiff));
+            sample.round_trip_time = std::max(100ULL, std::min(10000ULL, sample.round_trip_time)); // Clamp 0.1-10ms
+        }
+        else
+        {
+            sample.round_trip_time = 1000; // 1ms default
+        }
+    }
+    else
+    {
+        sample.round_trip_time = 1000; // 1ms default for first sample
+    }
 
     // Calculate drift for this sample
     sample.drift = CalculateDrift(sample);
@@ -59,18 +82,48 @@ uint64_t ClockSync::GetAdjustedTimestamp(uint64_t sender_timestamp) const
         return GetLocalTimestamp();
     }
 
-    // Apply clock offset and drift correction
-    uint64_t adjusted = sender_timestamp + m_clockOffset;
+    // OPTIMIZATION: Add overflow protection to timestamp calculations
+    int64_t senderTime = static_cast<int64_t>(sender_timestamp);
+    int64_t offsetTime = senderTime + static_cast<int64_t>(m_clockOffset);
 
-    // Apply drift correction (simplified linear correction)
-    if (m_driftRate != 0.0f)
+    // Check for overflow/underflow
+    if (offsetTime < 0)
     {
-        uint64_t timeSinceSync = GetLocalTimestamp() - m_stats.last_sync_time;
-        int64_t driftCorrection = static_cast<int64_t>(timeSinceSync * m_driftRate / 1000000.0f);
-        adjusted += driftCorrection;
+        LOG_WARNING("Clock offset caused underflow, using sender timestamp");
+        return sender_timestamp;
     }
 
-    return adjusted;
+    // Apply drift correction with overflow protection
+    if (m_driftRate != 0.0f && m_stats.last_sync_time != 0)
+    {
+        uint64_t currentTime = GetLocalTimestamp();
+        if (currentTime > m_stats.last_sync_time)
+        {
+            uint64_t timeSinceSync = currentTime - m_stats.last_sync_time;
+
+            // Limit time since sync to prevent excessive drift correction
+            timeSinceSync = std::min(timeSinceSync, 10000000ULL); // Max 10 seconds
+
+            // Calculate drift correction with safe arithmetic
+            double driftCorrectionFloat = static_cast<double>(timeSinceSync) * m_driftRate / 1000000.0;
+            int64_t driftCorrection = static_cast<int64_t>(driftCorrectionFloat);
+
+            // Apply correction with overflow check
+            int64_t finalTime = offsetTime + driftCorrection;
+
+            // Check for overflow
+            if ((driftCorrection > 0 && finalTime < offsetTime) ||
+                (driftCorrection < 0 && finalTime > offsetTime))
+            {
+                LOG_WARNING("Drift correction caused overflow, using base offset");
+                return static_cast<uint64_t>(std::max(0LL, offsetTime));
+            }
+
+            return static_cast<uint64_t>(std::max(0LL, finalTime));
+        }
+    }
+
+    return static_cast<uint64_t>(std::max(0LL, offsetTime));
 }
 
 uint64_t ClockSync::GetLocalTimestamp() const
@@ -136,24 +189,65 @@ void ClockSync::UpdateDriftRate()
     if (m_syncHistory.size() < m_minSyncSamples)
         return;
 
-    // Calculate average drift rate using linear regression
-    std::vector<float> drifts;
-    for (const auto &sample : m_syncHistory)
+    // OPTIMIZATION: Use linear regression for more accurate drift calculation
+    size_t n = m_syncHistory.size();
+    if (n < 2) return;
+
+    // Calculate linear regression: y = ax + b, where x is time, y is drift
+    double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    uint64_t baseTime = m_syncHistory[0].local_time;
+
+    // Use the last N samples for better accuracy
+    size_t startIdx = (n > 50) ? n - 50 : 0;
+    size_t count = n - startIdx;
+
+    for (size_t i = startIdx; i < n; ++i)
     {
-        drifts.push_back(sample.drift);
+        const auto &sample = m_syncHistory[i];
+
+        // Use relative time to avoid overflow
+        double x = static_cast<double>(sample.local_time - baseTime) / 1000000.0; // Convert to seconds
+        double y = sample.drift / 1000.0; // Convert to milliseconds
+
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
     }
 
-    // Simple average for now (could use more sophisticated algorithms)
-    float avgDrift = std::accumulate(drifts.begin(), drifts.end(), 0.0f) / drifts.size();
-
-    // Convert to ppm (parts per million)
-    m_driftRate = avgDrift * 1000000.0f / 1000000.0f; // Assuming microsecond precision
-
-    // Update clock offset
-    if (!m_syncHistory.empty())
+    // Calculate slope (drift rate) using least squares
+    double denominator = count * sumX2 - sumX * sumX;
+    if (std::abs(denominator) > 1e-10) // Avoid division by zero
     {
-        const auto &latest = m_syncHistory.back();
-        m_clockOffset = latest.local_time - latest.sender_time;
+        double slope = (count * sumXY - sumX * sumY) / denominator; // ms/s
+        double intercept = (sumY - slope * sumX) / count;
+
+        // Convert slope to ppm (parts per million)
+        m_driftRate = static_cast<float>(slope * 1000.0); // Convert ms/s to ppm
+
+        // Clamp drift rate to reasonable bounds
+        m_driftRate = std::max(-1000.0f, std::min(1000.0f, m_driftRate)); // ±1000 ppm max
+
+        // Update clock offset using the latest sample with RTT compensation
+        if (!m_syncHistory.empty())
+        {
+            const auto &latest = m_syncHistory.back();
+            int64_t offsetWithRTT = static_cast<int64_t>(latest.local_time) -
+                                   static_cast<int64_t>(latest.sender_time) -
+                                   static_cast<int64_t>(latest.round_trip_time / 2);
+            m_clockOffset = offsetWithRTT;
+        }
+
+        LOG_DEBUG_FMT("Clock sync regression: slope={:.3f} ppm, intercept={:.3f} ms, samples={}",
+                      m_driftRate, intercept, count);
+    }
+    else
+    {
+        // Fallback to simple average if regression fails
+        double avgDrift = sumY / count;
+        m_driftRate = static_cast<float>(avgDrift * 1000.0); // Convert to ppm
+
+        LOG_DEBUG_FMT("Clock sync fallback: avg drift={:.3f} ppm, samples={}", m_driftRate, count);
     }
 }
 

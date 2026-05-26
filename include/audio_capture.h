@@ -67,6 +67,16 @@ private:
     static DWORD WINAPI CaptureThread(LPVOID param);
     DWORD CaptureThreadMain();
 
+    // Audio format conversion helpers
+    bool ConvertBitDepthToFloat(const std::vector<uint8_t> &input, std::vector<float> &output,
+                               int channels, int bitsPerSample);
+    bool ConvertFloatToBitDepth(const std::vector<float> &input, std::vector<uint8_t> &output,
+                               int channels, int bitsPerSample);
+    bool ResampleAudio(const std::vector<float> &input, std::vector<float> &output,
+                      size_t inputFrameCount, int channels, int fromSampleRate, int toSampleRate);
+    bool ConvertChannels(const std::vector<float> &input, std::vector<float> &output,
+                        size_t frameCount, int fromChannels, int toChannels);
+
     // Thread management
     HANDLE m_captureThread;
     bool m_threadShouldExit;
